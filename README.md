@@ -211,12 +211,23 @@ podman exec hermes-suite supervisorctl status
 
 ### Changing component versions
 
-Edit `versions.env` to change the pinned versions:
+Edit `versions.env` to change the pinned versions and runtime settings:
 
-```
+```env
 AGENT_VERSION=v2026.5.16
 WEBUI_VERSION=v0.51.103
+
+# Runtime selector: auto (default), podman, docker, docker-nolog
+CONTAINER_RUNTIME=auto
+
+# Use sudo for commands (rootful mode): true, false
+USE_SUDO=false
 ```
+
+| Setting | Options | Default | Description |
+|---------|---------|---------|-------------|
+| `CONTAINER_RUNTIME` | `auto`, `podman`, `docker`, `docker-nolog` | `auto` | Which runtime helper scripts use. `auto` detects at script time. |
+| `USE_SUDO` | `true`, `false` | `false` | Run docker/podman commands with sudo (rootful mode) |
 
 Then rebuild:
 
