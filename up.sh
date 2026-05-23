@@ -4,21 +4,71 @@
 # =============================================================================
 set -e
 
-# Ensure podman-compose is findable (pip install puts it in ~/.local/bin)
-export PATH="$HOME/.local/bin:$PATH"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+COMPOSE_FILE="${SCRIPT_DIR}/docker-compose.yaml"
 
-COMPOSE_FILE="$(cd "$(dirname "$0")" && pwd)/docker-compose.yaml"
+# --- Load config from versions.env ---
+if [ -f "${SCRIPT_DIR}/versions.env" ]; then
+    eval "$(grep -E '^(CONTAINER_RUNTIME|USE_SUDO)=' "${SCRIPT_DIR}/versions.env")"
+fi
+CONTAINER_RUNTIME="${CONTAINER_RUNTIME:-auto}"
+USE_SUDO="${USE_SUDO:-false}"
 
-# Create the network if it doesn't already exist
-if ! podman network exists agent_net 2>/dev/null; then
-    echo "Creating network agent_net (10.99.0.0/24)..."
-    podman network create --subnet 10.99.0.0/24 agent_net
-    # Podman 3.4.4 generates CNI config v1.0.0 but the firewall plugin only supports 0.4.0
-    sed -i 's/"cniVersion": "1.0.0"/"cniVersion": "0.4.0"/' \
-        ~/.config/cni/net.d/agent_net.conflist 2>/dev/null || true
+# --- Auto-detect ---
+if [ "$CONTAINER_RUNTIME" = "auto" ]; then
+    if command -v podman &>/dev/null; then
+        CONTAINER_RUNTIME="podman"
+    elif command -v docker &>/dev/null; then
+        CONTAINER_RUNTIME="docker"
+    else
+        echo "ERROR: Neither podman nor docker found."
+        exit 1
+    fi
 fi
 
-podman-compose -f "${COMPOSE_FILE}" up -d
+# --- Determine sudo prefix ---
+SUDO_PREFIX=""
+if [ "$USE_SUDO" = "true" ]; then
+    SUDO_PREFIX="sudo"
+fi
+
+# --- Create network and start ---
+case "$CONTAINER_RUNTIME" in
+    podman)
+        export PATH="$HOME/.local/bin:$PATH"
+        PODMAN_COMPOSE="$(command -v podman-compose)"
+        NET_NAME=$(grep -m1 'external: true' "${COMPOSE_FILE}" -B1 | head -1 | sed 's/^[[:space:]]*//' | sed 's/:$//')
+        NET_IP=$(grep -m1 "ipv4_address" "${COMPOSE_FILE}" | sed "s/.*: //" | tr -d "[:space:]")
+        NET_SUBNET=$(echo "$NET_IP" | cut -d. -f1-3).0/24
+        if ! $SUDO_PREFIX podman network exists "$NET_NAME" 2>/dev/null; then
+            echo "Creating network $NET_NAME ($NET_SUBNET)..."
+            $SUDO_PREFIX podman network create --subnet "$NET_SUBNET" "$NET_NAME"
+            # Podman < 4 CNI version fix (firewall plugin doesn't support 1.0.0)
+            PODMAN_VER=$(podman version -f '{{.Version}}' 2>/dev/null | cut -d. -f1)
+            if [ "${PODMAN_VER:-4}" -lt 4 ]; then
+                CNI_FILE=$(find /etc/cni/net.d/ ~/.config/cni/net.d/ -name "${NET_NAME}.conflist" 2>/dev/null | head -1)
+                if [ -n "$CNI_FILE" ]; then
+                    $SUDO_PREFIX sed -i 's/"cniVersion": "1.0.0"/"cniVersion": "0.4.0"/' "$CNI_FILE"
+                fi
+            fi
+        fi
+        $SUDO_PREFIX "$PODMAN_COMPOSE" -f "${COMPOSE_FILE}" up -d
+        ;;
+    docker|docker-nolog)
+        NET_NAME=$(grep -m1 'external: true' "${COMPOSE_FILE}" -B1 | head -1 | sed 's/^[[:space:]]*//' | sed 's/:$//')
+        NET_IP=$(grep -m1 "ipv4_address" "${COMPOSE_FILE}" | sed "s/.*: //" | tr -d "[:space:]")
+        NET_SUBNET=$(echo "$NET_IP" | cut -d. -f1-3).0/24
+        if ! $SUDO_PREFIX docker network inspect "$NET_NAME" &>/dev/null; then
+            echo "Creating network $NET_NAME ($NET_SUBNET)..."
+            $SUDO_PREFIX docker network create --subnet "$NET_SUBNET" "$NET_NAME"
+        fi
+        $SUDO_PREFIX docker compose -f "${COMPOSE_FILE}" up -d
+        ;;
+    *)
+        echo "ERROR: Unknown CONTAINER_RUNTIME: $CONTAINER_RUNTIME"
+        exit 1
+        ;;
+esac
 
 echo ""
 echo "Hermes Suit is running:"
@@ -26,5 +76,5 @@ echo "  Gateway:    http://localhost:8642"
 echo "  WebUI:      http://localhost:8787"
 echo "  Dashboard:  http://localhost:9119"
 echo ""
-echo " Logs: podman-compose -f ${COMPOSE_FILE} logs -f"
-echo " Stop: podman-compose -f ${COMPOSE_FILE} down"
+echo " Logs: ./logs.sh"
+echo " Stop: ./down.sh"

@@ -4,7 +4,46 @@
 # =============================================================================
 set -e
 
-export PATH="$HOME/.local/bin:$PATH"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+COMPOSE_FILE="${SCRIPT_DIR}/docker-compose.yaml"
 
-COMPOSE_FILE="$(cd "$(dirname "$0")" && pwd)/docker-compose.yaml"
-podman-compose -f "${COMPOSE_FILE}" logs -f
+# --- Load config from versions.env ---
+if [ -f "${SCRIPT_DIR}/versions.env" ]; then
+    eval "$(grep -E '^(CONTAINER_RUNTIME|USE_SUDO)=' "${SCRIPT_DIR}/versions.env")"
+fi
+CONTAINER_RUNTIME="${CONTAINER_RUNTIME:-auto}"
+USE_SUDO="${USE_SUDO:-false}"
+
+# --- Auto-detect ---
+if [ "$CONTAINER_RUNTIME" = "auto" ]; then
+    if command -v podman &>/dev/null; then
+        CONTAINER_RUNTIME="podman"
+    elif command -v docker &>/dev/null; then
+        CONTAINER_RUNTIME="docker"
+    else
+        echo "ERROR: Neither podman nor docker found."
+        exit 1
+    fi
+fi
+
+# --- Determine sudo prefix ---
+SUDO_PREFIX=""
+if [ "$USE_SUDO" = "true" ]; then
+    SUDO_PREFIX="sudo"
+fi
+
+# --- Tail logs ---
+case "$CONTAINER_RUNTIME" in
+    podman)
+        export PATH="$HOME/.local/bin:$PATH"
+        PODMAN_COMPOSE="$(command -v podman-compose)"
+        $SUDO_PREFIX "$PODMAN_COMPOSE" -f "${COMPOSE_FILE}" logs -f
+        ;;
+    docker|docker-nolog)
+        $SUDO_PREFIX docker compose -f "${COMPOSE_FILE}" logs -f
+        ;;
+    *)
+        echo "ERROR: Unknown CONTAINER_RUNTIME: $CONTAINER_RUNTIME"
+        exit 1
+        ;;
+esac

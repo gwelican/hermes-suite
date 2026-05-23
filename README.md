@@ -81,20 +81,23 @@ podman build \
 Or use the build helper (reads from `versions.env`):
 
 ```bash
-# Podman (default)
+# Podman or Docker (auto-detected at container startup)
 ./build.sh
 
-# Docker with log files (recommended for rootful Docker)
+# Build with Docker explicitly
 ./build.sh --docker
 
-# Docker without logs
+# Docker without logs (optional)
 ./build.sh --docker-nolog
 
 # Override defaults:
 # ./build.sh --agent v2026.5.16 --webui v0.51.103
 ```
 
-> **Why does Docker need a separate flag?** Rootful Docker cannot reopen `/dev/stdout` after gosu drops privileges. `--docker` redirects child logs to `/var/log/supervisor/` with automatic 10MB rotation. `--docker-nolog` sends logs to `/dev/null`. Podman users need no flag — it works out of the box.
+> **Docker compatibility:** Docker CE is auto-detected at container startup via /proc/1/cgroup.
+> The universal image works on both Podman and Docker out of the box.
+> Use `--docker-nolog` only if you prefer no log output.
+> Set CONTAINER_RUNTIME in versions.env to control which runtime helper scripts use.
 
 ### Version Compatibility Table
 
@@ -257,8 +260,11 @@ If you are currently running the multi-container setup (hermes-agent + hermes-we
 
 **Rootless Podman:**
 
+The container runs as UID 10000, which maps to a host UID (e.g. 109999) per `/etc/subuid`.
+Fix ownership on the host:
+
 ```bash
-podman unshare -- chown -R 10000:10000 ~/.hermes
+sudo chown -R 109999:109999 ~/.hermes
 ```
 
 **Rootful Podman or Docker:**
@@ -279,16 +285,11 @@ podman exec hermes-suite /opt/hermes-webui/venv/bin/python -c "import yaml; prin
 
 ### Services fail with "EACCES making dispatchers" (Docker only)
 
-This occurs on rootful Docker because supervisord cannot reopen `/dev/stdout` after
-privileges are dropped. Rebuild with the Docker flag:
+This should not occur with the auto-detection feature (v2026.5.16+).
+The container detects Docker at startup and adjusts the privilege model automatically.
+Ensure you are using a recent image.
 
-```bash
-./build.sh --docker        # with log files (recommended)
-# or
-./build.sh --docker-nolog  # without logs
-```
-
-Also ensure `tty: true` is NOT set in docker-compose.yaml.
+If it still occurs, ensure `tty: true` is NOT set in docker-compose.yaml.
 
 ### Dashboard returns connection error
 
@@ -355,6 +356,7 @@ hermes-suite/
 | Platform | Arch | OS | Runtime | Status |
 |----------|------|----|---------|--------|
 | x86_64 (WSL2) | amd64 | Ubuntu 22.04 | Podman 3.4.4 | All 3 services running |
+| x86_64 (WSL2) | amd64 | Ubuntu 22.04 | Docker CE 29.4.2 | All 3 services running |
 | Jetson Orin NX 16GB | arm64 | Ubuntu 22.04 | Podman 3.4.4 | All 3 services running |
 
 The base image `nousresearch/hermes-agent` provides multi-architecture manifests (amd64 + arm64).

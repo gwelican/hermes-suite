@@ -78,7 +78,7 @@ RUN cd /opt && \
         https://github.com/nesquena/hermes-webui.git hermes-webui && \
     uv venv /opt/hermes-webui/venv && \
     uv pip install --python /opt/hermes-webui/venv/bin/python3 --no-cache-dir -r /opt/hermes-webui/requirements.txt && \
-    uv pip install --python /opt/hermes-webui/venv/bin/python3 --no-cache-dir -e "/opt/hermes[all]" && \
+    uv pip install --python /opt/hermes-webui/venv/bin/python3 --no-cache-dir -e "/opt/hermes" && \
     rm -rf /opt/hermes-webui/.git
 
 # Bake version tag into the webui
