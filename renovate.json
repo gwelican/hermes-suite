@@ -1,0 +1,44 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    ":automergeBranch",
+    ":rebaseStalePrs"
+  ],
+  "labels": ["dependencies", "renovate"],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "Track hermes-agent Docker image version in versions.env",
+      "fileMatch": ["^versions.env$"],
+      "matchStrings": [
+        "AGENT_VERSION=(?<currentValue>v?[\\d.]+)"
+      ],
+      "datasourceTemplate": "docker",
+      "depNameTemplate": "nousresearch/hermes-agent",
+      "versioningTemplate": "loose"
+    },
+    {
+      "customType": "regex",
+      "description": "Track hermes-webui GitHub release version in versions.env",
+      "fileMatch": ["^versions.env$"],
+      "matchStrings": [
+        "WEBUI_VERSION=(?<currentValue>v?[\\d.]+)"
+      ],
+      "datasourceTemplate": "github-tags",
+      "depNameTemplate": "nesquena/hermes-webui",
+      "versioningTemplate": "loose"
+    }
+  ],
+  "packageRules": [
+    {
+      "description": "Auto-merge version bumps for Hermes components",
+      "matchDatasources": ["docker", "github-tags"],
+      "matchDepNames": ["nousresearch/hermes-agent", "nesquena/hermes-webui"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "automerge": true,
+      "automergeType": "pr",
+      "platformAutomerge": true
+    }
+  ]
+}
