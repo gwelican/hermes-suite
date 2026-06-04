@@ -28,13 +28,24 @@
       "datasourceTemplate": "github-tags",
       "depNameTemplate": "nesquena/hermes-webui",
       "versioningTemplate": "loose"
+    },
+    {
+      "customType": "regex",
+      "description": "Track agentmemory npm package version in agentmemory/versions.env",
+      "fileMatch": ["^agentmemory/versions\\.env$"],
+      "matchStrings": [
+        "AGENTMEMORY_VERSION=(?<currentValue>[\\d.]+)"
+      ],
+      "datasourceTemplate": "npm",
+      "depNameTemplate": "@agentmemory/agentmemory",
+      "versioningTemplate": "semver"
     }
   ],
   "packageRules": [
     {
-      "description": "Auto-merge version bumps for Hermes components",
-      "matchDatasources": ["docker", "github-tags"],
-      "matchDepNames": ["nousresearch/hermes-agent", "nesquena/hermes-webui"],
+      "description": "Auto-merge version bumps for bundled components",
+      "matchDatasources": ["docker", "github-tags", "npm"],
+      "matchDepNames": ["nousresearch/hermes-agent", "nesquena/hermes-webui", "@agentmemory/agentmemory"],
       "matchUpdateTypes": ["minor", "patch"],
       "automerge": true,
       "automergeType": "pr",
