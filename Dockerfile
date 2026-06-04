@@ -23,6 +23,7 @@ ARG AGENT_VERSION=v2026.5.29.2
 FROM docker.io/nousresearch/hermes-agent:${AGENT_VERSION}
 
 USER root
+RUN touch /.dockerenv
 
 # ---------------------------------------------------------------------------
 # Stage 2: Install system dependencies needed by all services
@@ -39,8 +40,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         procps \
     && rm -rf /var/lib/apt/lists/*
 
-# Allow hermes user to use sudo without password
-RUN echo "hermes ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
 
 # ---------------------------------------------------------------------------
 # Stage 3: Install Browser tool dependencies for agent
@@ -89,9 +88,26 @@ RUN echo "__version__ = '${HERMES_WEBUI_VERSION}'" > /opt/hermes-webui/api/_vers
 RUN chown -R hermes:hermes /opt/hermes-webui/venv
 
 # ---------------------------------------------------------------------------
+# Stage 5b: Custom additions (skills, tools, extra packages)
+# Copy files from custom/ into the image.  Rebuild to pick up changes.
+# ---------------------------------------------------------------------------
+# Ensure directories exist even if custom/ folders are empty
+RUN mkdir -p /opt/hermes/skills/custom /opt/hermes-suite/entrypoint.d /opt/hermes-suite/supervisord.d
+
+COPY custom/requirements.txt /tmp/custom-requirements.txt
+RUN if [ -s /tmp/custom-requirements.txt ]; then \
+        uv pip install --system -r /tmp/custom-requirements.txt; \
+    fi
+
+COPY custom/skills/ /opt/hermes/skills/custom/
+COPY custom/entrypoint.d/ /opt/hermes-suite/entrypoint.d/
+COPY custom/supervisord.d/ /opt/hermes-suite/supervisord.d/
+RUN chmod -R +x /opt/hermes-suite/entrypoint.d 2>/dev/null || true
+
 # Stage 6: Set up supervisord config and startup script
 # ---------------------------------------------------------------------------
 COPY supervisord.conf /etc/supervisor/supervisord.conf
+RUN printf '\\n; Optional: custom services from custom/supervisord.d/*.conf\\n[include]\\nfiles = /opt/hermes-suite/supervisord.d/*.conf\\n' >> /etc/supervisor/supervisord.conf
 COPY start.sh /opt/hermes-suite/start.sh
 RUN chmod +x /opt/hermes-suite/start.sh
 
