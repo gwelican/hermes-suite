@@ -1,0 +1,71 @@
+# =============================================================================
+# .woodpecker/agentmemory.yml — Build and push standalone AgentMemory image
+#
+# Triggered on: push to main branch
+#
+# Secrets required in Woodpecker UI:
+#   github_token — GitHub PAT with write:packages, read:repo scopes
+# =============================================================================
+
+when:
+  event: push
+  branch: main
+
+steps:
+  - name: read-versions
+    image: alpine
+    commands:
+      - |
+        set -e
+        set -a && . agentmemory/versions.env && set +a
+        {
+          echo "AGENTMEMORY_VERSION=${AGENTMEMORY_VERSION}"
+          echo "AGENTMEMORY_III_VERSION=${AGENTMEMORY_III_VERSION}"
+          echo "IMAGE=ghcr.io/${CI_REPO_OWNER}/${CI_REPO_NAME}-agentmemory"
+        } > .env.agentmemory
+        cat .env.agentmemory
+
+  - name: setup-qemu
+    image: docker:dind
+    privileged: true
+    commands:
+      - docker run --rm --privileged tonistiigi/binfmt:latest --install all
+
+  - name: setup-buildx
+    image: docker:dind
+    privileged: true
+    commands:
+      - docker buildx create --name ci-builder --use 2>/dev/null || docker buildx use ci-builder
+      - docker buildx inspect --bootstrap
+
+  - name: login-ghcr
+    image: docker:dind
+    privileged: true
+    environment:
+      GITHUB_TOKEN:
+        from_secret: github_token
+    commands:
+      - echo "$GITHUB_TOKEN" | docker login ghcr.io -u "$CI_REPO_OWNER" --password-stdin
+
+  - name: build-push
+    image: docker:dind
+    privileged: true
+    commands:
+      - set -e
+      - set -a && . .env.agentmemory && set +a
+      - |
+        docker buildx build \
+          --platform linux/amd64,linux/arm64 \
+          --build-arg "AGENTMEMORY_VERSION=${AGENTMEMORY_VERSION}" \
+          --build-arg "AGENTMEMORY_III_VERSION=${AGENTMEMORY_III_VERSION}" \
+          -t "${IMAGE}:${AGENTMEMORY_VERSION}" \
+          -t "${IMAGE}:latest" \
+          --push agentmemory
+
+  - name: verify-manifest
+    image: docker:dind
+    privileged: true
+    commands:
+      - set -e
+      - set -a && . .env.agentmemory && set +a
+      - docker buildx imagetools inspect "${IMAGE}:${AGENTMEMORY_VERSION}"
