@@ -1,0 +1,81 @@
+# =============================================================================
+# .woodpecker/build.yml — Build and push multi-arch image to GHCR
+#
+# Triggered on: tag push matching refs/tags/v*
+#
+# Secrets required in Woodpecker UI:
+#   github_token — GitHub PAT with write:packages, read:repo scopes
+#
+# Multi-arch via Docker Buildx + QEMU inside privileged dind.
+# =============================================================================
+
+when:
+  event: tag
+  ref: refs/tags/v*
+
+steps:
+  - name: fetch-tags
+    image: alpine/git
+    commands:
+      - git fetch origin --tags
+
+  - name: read-versions
+    image: alpine
+    commands:
+      - |
+        set -e
+        set -a && . versions.env && set +a
+        # Write to file for downstream steps (Woodpecker steps don't share env)
+        {
+          echo "AGENT_VERSION=${AGENT_VERSION}"
+          echo "WEBUI_VERSION=${WEBUI_VERSION}"
+          echo "AGENT_CLEAN=${AGENT_VERSION#v}"
+          echo "WEBUI_CLEAN=${WEBUI_VERSION#v}"
+          echo "IMAGE_TAG=${AGENT_VERSION#v}-${WEBUI_VERSION#v}"
+        } > .env.ci
+        cat .env.ci
+
+  - name: setup-qemu
+    image: docker:dind
+    privileged: true
+    commands:
+      - docker run --rm --privileged tonistiigi/binfmt:latest --install all
+
+  - name: setup-buildx
+    image: docker:dind
+    privileged: true
+    commands:
+      - docker buildx create --name ci-builder --use 2>/dev/null || docker buildx use ci-builder
+      - docker buildx inspect --bootstrap
+
+  - name: login-ghcr
+    image: docker:dind
+    privileged: true
+    environment:
+      GITHUB_TOKEN:
+        from_secret: github_token
+    commands:
+      - echo "$GITHUB_TOKEN" | docker login ghcr.io -u "$CI_REPO_OWNER" --password-stdin
+
+  - name: build-push
+    image: docker:dind
+    privileged: true
+    commands:
+      - set -e
+      - set -a && . .env.ci && set +a
+      - |
+        docker buildx build \
+          --platform linux/amd64,linux/arm64 \
+          --build-arg "AGENT_VERSION=${AGENT_VERSION}" \
+          --build-arg "HERMES_WEBUI_VERSION=${WEBUI_VERSION}" \
+          -t "ghcr.io/${CI_REPO_OWNER}/${CI_REPO_NAME}:${IMAGE_TAG}" \
+          -t "ghcr.io/${CI_REPO_OWNER}/${CI_REPO_NAME}:latest" \
+          --push .
+
+  - name: verify-manifest
+    image: docker:dind
+    privileged: true
+    commands:
+      - set -e
+      - set -a && . .env.ci && set +a
+      - docker buildx imagetools inspect "ghcr.io/${CI_REPO_OWNER}/${CI_REPO_NAME}:${IMAGE_TAG}"

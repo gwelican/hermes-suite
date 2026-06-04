@@ -1,0 +1,44 @@
+# =============================================================================
+# .woodpecker/tag.yml — Auto-create release tag on main when versions.env changes
+#
+# Triggered on: push to main branch
+#
+# Reads versions.env, computes the compound tag, and pushes it if it does not
+# already exist. The tag push then triggers .woodpecker/build.yml.
+#
+# Secrets required:
+#   github_token — GitHub PAT with repo scope (push tags)
+# =============================================================================
+
+when:
+  event: push
+  branch: main
+
+steps:
+  - name: fetch-tags
+    image: alpine/git
+    commands:
+      - git fetch origin --tags
+
+  - name: create-tag
+    image: alpine/git
+    environment:
+      GITHUB_TOKEN:
+        from_secret: github_token
+    commands:
+      - set -e
+      - set -a && . versions.env && set +a
+      - |
+        AGENT_CLEAN="${AGENT_VERSION#v}"
+        WEBUI_CLEAN="${WEBUI_VERSION#v}"
+        TAG="v${AGENT_CLEAN}-${WEBUI_CLEAN}"
+        echo "Computed tag: ${TAG}"
+        if git rev-parse "${TAG}" >/dev/null 2>&1; then
+          echo "Tag ${TAG} already exists. Skipping."
+          exit 0
+        fi
+        git config user.email "ci@woodpecker"
+        git config user.name "Woodpecker CI"
+        git tag -a "${TAG}" -m "Release ${TAG}  [agent=${AGENT_VERSION}, webui=${WEBUI_VERSION}]"
+        git push "https://x-access-token:${GITHUB_TOKEN}@github.com/${CI_REPO_OWNER}/${CI_REPO_NAME}.git" "${TAG}"
+        echo "Pushed tag ${TAG}"
