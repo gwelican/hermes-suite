@@ -121,8 +121,8 @@ jobs:
           cache-to: type=gha,mode=max,scope=agentmemory
 
   build-hermes:
-    if: github.ref_type == 'tag'
-    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    needs: create-tag
     steps:
       - name: Checkout
         uses: actions/checkout@v6
