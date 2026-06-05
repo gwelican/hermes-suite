@@ -17,15 +17,12 @@ when:
 steps:
   - name: build-push
     image: gcr.io/kaniko-project/executor:debug
-    environment:
-      GITHUB_TOKEN:
-        from_secret: github_token
     commands:
       - |
         set -e
         set -a && . agentmemory/versions.env && set +a
         mkdir -p /kaniko/.docker
-        printf '%s:%s' "${CI_REPO_OWNER}" "${GITHUB_TOKEN}" | base64 -w0 > /tmp/auth_b64
+        printf '%s:%s' "${CI_REPO_OWNER}" "${github_token}" | base64 -w0 > /tmp/auth_b64
         AUTH="$(cat /tmp/auth_b64)"
         echo "{\"auths\":{\"ghcr.io\":{\"auth\":\"${AUTH}\"}}}" > /kaniko/.docker/config.json
         rm /tmp/auth_b64
