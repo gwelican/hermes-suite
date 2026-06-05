@@ -1,14 +1,9 @@
-volumes:
-  - name: docker-sock
-    host:
-      path: /var/run/docker.sock
-
 steps:
   - name: create-tag
     image: alpine/git
     when:
-      event: push
-      branch: main
+      - event: push
+        branch: main
     commands:
       - git fetch origin --tags
       - |
@@ -30,11 +25,10 @@ steps:
   - name: build-agentmemory
     image: docker:cli
     when:
-      event: push
-      branch: main
+      - event: push
+        branch: main
     volumes:
-      - name: docker-sock
-        path: /var/run/docker.sock
+      - /var/run/docker.sock:/var/run/docker.sock
     commands:
       - |
         set -e
@@ -53,10 +47,9 @@ steps:
   - name: build-hermes
     image: docker:cli
     when:
-      event: tag
+      - event: tag
     volumes:
-      - name: docker-sock
-        path: /var/run/docker.sock
+      - /var/run/docker.sock:/var/run/docker.sock
     commands:
       - |
         set -e
