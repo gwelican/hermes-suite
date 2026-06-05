@@ -12,7 +12,7 @@ steps:
       OBSIDIAN_HEADLESS_VERSION: 0.0.10
     commands:
       - git fetch origin --tags
-      - >
+      - |
         set -e;
         TAG="v${AGENT_CLEAN}-${WEBUI_CLEAN}-ob${OBSIDIAN_HEADLESS_VERSION}";
         echo "TAG=${TAG}";
