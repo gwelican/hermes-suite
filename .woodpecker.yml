@@ -39,9 +39,11 @@ steps:
       - >
         set -e;
         . ./agentmemory/versions.env;
+        test -n "$${GH_TOKEN}" || { echo "GH_TOKEN secret is empty or unavailable for this event"; exit 1; };
+        test -n "$${GHCR_USERNAME}" || { echo "GHCR_USERNAME is empty"; exit 1; };
+        echo "Using GHCR username $${GHCR_USERNAME}";
         mkdir -p /kaniko/.docker;
-        AUTH="$$(printf '%s:%s' "$${GHCR_USERNAME}" "$${GH_TOKEN}" | base64 | tr -d '\n')";
-        printf '{"auths":{"ghcr.io":{"auth":"%s"}}}' "$${AUTH}" > /kaniko/.docker/config.json;
+        printf '{"auths":{"ghcr.io":{"username":"%s","password":"%s"}}}' "$${GHCR_USERNAME}" "$${GH_TOKEN}" > /kaniko/.docker/config.json;
         /kaniko/executor
         --dockerfile agentmemory/Dockerfile
         --context dir://agentmemory
@@ -65,9 +67,11 @@ steps:
         . ./versions.env;
         OBSIDIAN_HEADLESS_VERSION="$$(sed -n 's/^ARG OBSIDIAN_HEADLESS_VERSION=//p' Dockerfile | head -n1)";
         IMAGE_TAG="$${AGENT_VERSION#v}-$${WEBUI_VERSION#v}-ob$${OBSIDIAN_HEADLESS_VERSION}";
+        test -n "$${GH_TOKEN}" || { echo "GH_TOKEN secret is empty or unavailable for this event"; exit 1; };
+        test -n "$${GHCR_USERNAME}" || { echo "GHCR_USERNAME is empty"; exit 1; };
+        echo "Using GHCR username $${GHCR_USERNAME}";
         mkdir -p /kaniko/.docker;
-        AUTH="$$(printf '%s:%s' "$${GHCR_USERNAME}" "$${GH_TOKEN}" | base64 | tr -d '\n')";
-        printf '{"auths":{"ghcr.io":{"auth":"%s"}}}' "$${AUTH}" > /kaniko/.docker/config.json;
+        printf '{"auths":{"ghcr.io":{"username":"%s","password":"%s"}}}' "$${GHCR_USERNAME}" "$${GH_TOKEN}" > /kaniko/.docker/config.json;
         /kaniko/executor
         --dockerfile Dockerfile
         --context dir://.
