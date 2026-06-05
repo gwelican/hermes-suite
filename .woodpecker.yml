@@ -1,10 +1,3 @@
-services:
-  - name: docker
-    image: docker:dind
-    privileged: true
-    environment:
-      DOCKER_TLS_CERTDIR: ""
-
 steps:
   - name: create-tag
     image: alpine/git
@@ -45,46 +38,39 @@ steps:
         git push "https://x-access-token:${github_token}@github.com/${CI_REPO_OWNER}/${CI_REPO_NAME}.git" "${TAG}"
 
   - name: build-agentmemory
-    image: docker:cli
+    image: gcr.io/kaniko-project/executor:latest
     when:
       - event: push
         branch: main
-    environment:
-      DOCKER_HOST: tcp://docker:2375
     commands:
       - |
         set -e
         set -a && . agentmemory/versions.env && set +a
-        echo "${github_token}" | docker login ghcr.io -u "${CI_REPO_OWNER}" --password-stdin
-        docker build \
-          -f agentmemory/Dockerfile \
-          -t "ghcr.io/${CI_REPO_OWNER}/${CI_REPO_NAME}-agentmemory:${AGENTMEMORY_VERSION}" \
-          -t "ghcr.io/${CI_REPO_OWNER}/${CI_REPO_NAME}-agentmemory:latest" \
+        /kaniko/executor \
+          --dockerfile agentmemory/Dockerfile \
+          --context dir://agentmemory \
+          --destination "ghcr.io/${CI_REPO_OWNER}/${CI_REPO_NAME}-agentmemory:${AGENTMEMORY_VERSION}" \
+          --destination "ghcr.io/${CI_REPO_OWNER}/${CI_REPO_NAME}-agentmemory:latest" \
           --build-arg "AGENTMEMORY_VERSION=${AGENTMEMORY_VERSION}" \
           --build-arg "AGENTMEMORY_III_VERSION=${AGENTMEMORY_III_VERSION}" \
-          agentmemory
-        docker push "ghcr.io/${CI_REPO_OWNER}/${CI_REPO_NAME}-agentmemory:${AGENTMEMORY_VERSION}"
-        docker push "ghcr.io/${CI_REPO_OWNER}/${CI_REPO_NAME}-agentmemory:latest"
+          --cache=true
 
   - name: build-hermes
-    image: docker:cli
+    image: gcr.io/kaniko-project/executor:latest
     when:
       - event: tag
-    environment:
-      DOCKER_HOST: tcp://docker:2375
     commands:
       - |
         set -e
         set -a && . versions.env && set +a
         OBSIDIAN_HEADLESS_VERSION="$(grep -m1 '^ARG OBSIDIAN_HEADLESS_VERSION=' Dockerfile | sed 's/^ARG OBSIDIAN_HEADLESS_VERSION=//')"
         IMAGE_TAG="${AGENT_VERSION#v}-${WEBUI_VERSION#v}-ob${OBSIDIAN_HEADLESS_VERSION}"
-        echo "${github_token}" | docker login ghcr.io -u "${CI_REPO_OWNER}" --password-stdin
-        docker build \
+        /kaniko/executor \
+          --dockerfile Dockerfile \
+          --context dir://. \
+          --destination "ghcr.io/${CI_REPO_OWNER}/${CI_REPO_NAME}:${IMAGE_TAG}" \
+          --destination "ghcr.io/${CI_REPO_OWNER}/${CI_REPO_NAME}:latest" \
           --build-arg "AGENT_VERSION=${AGENT_VERSION}" \
           --build-arg "HERMES_WEBUI_VERSION=${WEBUI_VERSION}" \
           --build-arg "OBSIDIAN_HEADLESS_VERSION=${OBSIDIAN_HEADLESS_VERSION}" \
-          -t "ghcr.io/${CI_REPO_OWNER}/${CI_REPO_NAME}:${IMAGE_TAG}" \
-          -t "ghcr.io/${CI_REPO_OWNER}/${CI_REPO_NAME}:latest" \
-          .
-        docker push "ghcr.io/${CI_REPO_OWNER}/${CI_REPO_NAME}:${IMAGE_TAG}"
-        docker push "ghcr.io/${CI_REPO_OWNER}/${CI_REPO_NAME}:latest"
+          --cache=true
