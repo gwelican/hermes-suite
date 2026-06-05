@@ -15,6 +15,7 @@ steps:
       - |
         set -e;
         TAG="v${AGENT_CLEAN}-${WEBUI_CLEAN}-ob${OBSIDIAN_HEADLESS_VERSION}";
+        echo $WEBUI_VERSION;
         echo "TAG=${TAG}";
         git rev-parse "${TAG}" >/dev/null 2>&1 && { echo "Tag ${TAG} already exists. Skipping."; exit 0; };
         git config user.email "ci@woodpecker";
