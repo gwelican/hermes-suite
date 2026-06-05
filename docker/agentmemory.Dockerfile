@@ -3,7 +3,7 @@
 # Standalone AgentMemory server image
 # =============================================================================
 
-ARG NODE_BASE_IMAGE=ghcr.io/gwelican/node:24-bookworm-slim
+ARG NODE_BASE_IMAGE=node:24-bookworm-slim
 FROM ${NODE_BASE_IMAGE}
 
 ARG AGENTMEMORY_VERSION=0.9.26
@@ -11,47 +11,47 @@ ARG AGENTMEMORY_III_VERSION=0.11.2
 ARG TARGETARCH=amd64
 
 LABEL org.opencontainers.image.title="AgentMemory" \
-      org.opencontainers.image.description="Standalone @agentmemory/agentmemory server for Hermes" \
-      org.opencontainers.image.source="https://github.com/gwelican/hermes-suite" \
-      org.opencontainers.image.vendor="gwelican" \
-      hermes-suite.agentmemory-version="${AGENTMEMORY_VERSION}" \
-      hermes-suite.agentmemory-iii-version="${AGENTMEMORY_III_VERSION}"
+  org.opencontainers.image.description="Standalone @agentmemory/agentmemory server for Hermes" \
+  org.opencontainers.image.source="https://github.com/gwelican/hermes-suite" \
+  org.opencontainers.image.vendor="gwelican" \
+  hermes-suite.agentmemory-version="${AGENTMEMORY_VERSION}" \
+  hermes-suite.agentmemory-iii-version="${AGENTMEMORY_III_VERSION}"
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        ca-certificates \
-        curl \
-        tar \
-    && rm -rf /var/lib/apt/lists/*
+  ca-certificates \
+  curl \
+  tar \
+  && rm -rf /var/lib/apt/lists/*
 
 RUN npm install -g --no-audit \
-        "@agentmemory/agentmemory@${AGENTMEMORY_VERSION}" \
-        "@agentmemory/mcp@${AGENTMEMORY_VERSION}"
+  "@agentmemory/agentmemory@${AGENTMEMORY_VERSION}" \
+  "@agentmemory/mcp@${AGENTMEMORY_VERSION}"
 
 # Preinstall the pinned private iii runtime so first boot does not need to
 # download binaries from GitHub. Keep this in sync with config/versions.env.
 RUN set -eux; \
-    case "${TARGETARCH}" in \
-      amd64) asset="iii-x86_64-unknown-linux-gnu.tar.gz" ;; \
-      arm64) asset="iii-aarch64-unknown-linux-gnu.tar.gz" ;; \
-      arm) asset="iii-armv7-unknown-linux-gnueabihf.tar.gz" ;; \
-      *) echo "Unsupported TARGETARCH=${TARGETARCH}" >&2; exit 1 ;; \
-    esac; \
-    url="https://github.com/iii-hq/iii/releases/download/iii/v${AGENTMEMORY_III_VERSION}/${asset}"; \
-    mkdir -p /tmp/iii /home/node/.agentmemory/bin; \
-    curl -fsSL "$url" -o /tmp/iii.tgz; \
-    tar -xzf /tmp/iii.tgz -C /tmp/iii; \
-    iii_bin="$(find /tmp/iii -type f -name iii -perm /111 | head -n 1)"; \
-    test -n "$iii_bin"; \
-    install -m 0755 "$iii_bin" /home/node/.agentmemory/bin/iii; \
-    /home/node/.agentmemory/bin/iii --version || echo "Warning: iii --version failed (common in cross-arch builds)"; \
-    rm -rf /tmp/iii /tmp/iii.tgz; \
-    chown -R node:node /home/node/.agentmemory
+  case "${TARGETARCH}" in \
+  amd64) asset="iii-x86_64-unknown-linux-gnu.tar.gz" ;; \
+  arm64) asset="iii-aarch64-unknown-linux-gnu.tar.gz" ;; \
+  arm) asset="iii-armv7-unknown-linux-gnueabihf.tar.gz" ;; \
+  *) echo "Unsupported TARGETARCH=${TARGETARCH}" >&2; exit 1 ;; \
+  esac; \
+  url="https://github.com/iii-hq/iii/releases/download/iii/v${AGENTMEMORY_III_VERSION}/${asset}"; \
+  mkdir -p /tmp/iii /home/node/.agentmemory/bin; \
+  curl -fsSL "$url" -o /tmp/iii.tgz; \
+  tar -xzf /tmp/iii.tgz -C /tmp/iii; \
+  iii_bin="$(find /tmp/iii -type f -name iii -perm /111 | head -n 1)"; \
+  test -n "$iii_bin"; \
+  install -m 0755 "$iii_bin" /home/node/.agentmemory/bin/iii; \
+  /home/node/.agentmemory/bin/iii --version || echo "Warning: iii --version failed (common in cross-arch builds)"; \
+  rm -rf /tmp/iii /tmp/iii.tgz; \
+  chown -R node:node /home/node/.agentmemory
 
 ENV NODE_ENV=production \
-    HOME=/home/node \
-    AGENTMEMORY_TOOLS=all \
-    AGENTMEMORY_III_VERSION=0.11.2 \
-    III_REST_PORT=3111
+  HOME=/home/node \
+  AGENTMEMORY_TOOLS=all \
+  AGENTMEMORY_III_VERSION=0.11.2 \
+  III_REST_PORT=3111
 
 USER node
 WORKDIR /home/node
