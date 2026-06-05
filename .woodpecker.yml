@@ -9,13 +9,12 @@ steps:
       - |
         set -e
         if [ ! -f versions.env ]; then
-          echo "ERROR: versions.env not found" >&2
+          echo "ERROR: versions.env not found in $(pwd)" >&2
           ls -la
           exit 1
         fi
-        set -a
-        . versions.env
-        set +a
+        AGENT_VERSION="$(grep '^AGENT_VERSION=' versions.env | cut -d= -f2-)"
+        WEBUI_VERSION="$(grep '^WEBUI_VERSION=' versions.env | cut -d= -f2-)"
         OBSIDIAN_HEADLESS_VERSION="$(grep -m1 '^ARG OBSIDIAN_HEADLESS_VERSION=' Dockerfile | sed 's/^ARG OBSIDIAN_HEADLESS_VERSION=//')"
         echo "AGENT_VERSION=${AGENT_VERSION}"
         echo "WEBUI_VERSION=${WEBUI_VERSION}"
@@ -35,6 +34,7 @@ steps:
         git config user.email "ci@woodpecker"
         git config user.name "Woodpecker CI"
         git tag -a "${TAG}" -m "Release ${TAG}"
+        set +x
         git push "https://x-access-token:${github_token}@github.com/${CI_REPO_OWNER}/${CI_REPO_NAME}.git" "${TAG}"
 
   - name: build-agentmemory
@@ -45,7 +45,8 @@ steps:
     commands:
       - |
         set -e
-        set -a && . agentmemory/versions.env && set +a
+        AGENTMEMORY_VERSION="$(grep '^AGENTMEMORY_VERSION=' agentmemory/versions.env | cut -d= -f2-)"
+        AGENTMEMORY_III_VERSION="$(grep '^AGENTMEMORY_III_VERSION=' agentmemory/versions.env | cut -d= -f2-)"
         /kaniko/executor \
           --dockerfile agentmemory/Dockerfile \
           --context dir://agentmemory \
@@ -62,7 +63,8 @@ steps:
     commands:
       - |
         set -e
-        set -a && . versions.env && set +a
+        AGENT_VERSION="$(grep '^AGENT_VERSION=' versions.env | cut -d= -f2-)"
+        WEBUI_VERSION="$(grep '^WEBUI_VERSION=' versions.env | cut -d= -f2-)"
         OBSIDIAN_HEADLESS_VERSION="$(grep -m1 '^ARG OBSIDIAN_HEADLESS_VERSION=' Dockerfile | sed 's/^ARG OBSIDIAN_HEADLESS_VERSION=//')"
         IMAGE_TAG="${AGENT_VERSION#v}-${WEBUI_VERSION#v}-ob${OBSIDIAN_HEADLESS_VERSION}"
         /kaniko/executor \
