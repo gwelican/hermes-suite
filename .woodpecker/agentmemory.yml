@@ -4,7 +4,9 @@
 # Triggered on: push to main branch
 #
 # Secrets required in Woodpecker UI:
-#   github_token — GitHub PAT with write:packages, read:repo scopes
+#   github_token — GitHub PAT with write:packages scope
+#
+# No QEMU, no buildx. Native amd64 build only.
 # =============================================================================
 
 when:
@@ -25,19 +27,6 @@ steps:
         } > .env.agentmemory
         cat .env.agentmemory
 
-  - name: setup-qemu
-    image: docker:dind
-    privileged: true
-    commands:
-      - docker run --rm --privileged tonistiigi/binfmt:latest --install all
-
-  - name: setup-buildx
-    image: docker:dind
-    privileged: true
-    commands:
-      - docker buildx create --name ci-builder --use 2>/dev/null || docker buildx use ci-builder
-      - docker buildx inspect --bootstrap
-
   - name: login-ghcr
     image: docker:dind
     privileged: true
@@ -54,18 +43,12 @@ steps:
       - set -e
       - set -a && . .env.agentmemory && set +a
       - |
-        docker buildx build \
-          --platform linux/amd64,linux/arm64 \
-          --build-arg "AGENTMEMORY_VERSION=${AGENTMEMORY_VERSION}" \
-          --build-arg "AGENTMEMORY_III_VERSION=${AGENTMEMORY_III_VERSION}" \
+        docker build \
+          -f agentmemory/Dockerfile \
           -t "${IMAGE}:${AGENTMEMORY_VERSION}" \
           -t "${IMAGE}:latest" \
-          --push agentmemory
-
-  - name: verify-manifest
-    image: docker:dind
-    privileged: true
-    commands:
-      - set -e
-      - set -a && . .env.agentmemory && set +a
-      - docker buildx imagetools inspect "${IMAGE}:${AGENTMEMORY_VERSION}"
+          --build-arg "AGENTMEMORY_VERSION=${AGENTMEMORY_VERSION}" \
+          --build-arg "AGENTMEMORY_III_VERSION=${AGENTMEMORY_III_VERSION}" \
+          agentmemory
+      - docker push "${IMAGE}:${AGENTMEMORY_VERSION}"
+      - docker push "${IMAGE}:latest"
