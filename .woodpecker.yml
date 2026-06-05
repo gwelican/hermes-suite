@@ -45,8 +45,8 @@ steps:
         /kaniko/executor
         --dockerfile agentmemory/Dockerfile
         --context dir://agentmemory
-        --destination "ghcr.io/$${CI_REPO_OWNER}/$${CI_REPO_NAME}-agentmemory:$${AGENTMEMORY_VERSION}"
-        --destination "ghcr.io/$${CI_REPO_OWNER}/$${CI_REPO_NAME}-agentmemory:latest"
+        --destination "ghcr.io/$${CI_REPO_OWNER}/$${CI_REPO_NAME}:$${AGENTMEMORY_VERSION}"
+        --destination "ghcr.io/$${CI_REPO_OWNER}/$${CI_REPO_NAME}:latest"
         --build-arg "AGENTMEMORY_VERSION=$${AGENTMEMORY_VERSION}"
         --build-arg "AGENTMEMORY_III_VERSION=$${AGENTMEMORY_III_VERSION}"
         --cache=true
