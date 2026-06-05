@@ -1,16 +1,23 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  dependencyDashboard: true,
+  dependencyDashboardTitle: "Renovate Dashboard 🤖",
+  "labels": [
+    "dependencies",
+    "renovate"
+  ],
   "extends": [
     "config:recommended",
     ":automergeBranch",
     ":rebaseStalePrs"
   ],
-  "labels": ["dependencies", "renovate"],
   "customManagers": [
     {
       "customType": "regex",
       "description": "Track hermes-agent Docker image version",
-      "fileMatch": ["^config/versions\\.env$"],
+      "fileMatch": [
+        "^config/versions\\.env$"
+      ],
       "matchStrings": [
         "HERMES_AGENT_VERSION=(?<currentValue>v?[\\d.]+)"
       ],
@@ -21,7 +28,9 @@
     {
       "customType": "regex",
       "description": "Track hermes-webui GitHub tag version",
-      "fileMatch": ["^config/versions\\.env$"],
+      "fileMatch": [
+        "^config/versions\\.env$"
+      ],
       "matchStrings": [
         "HERMES_WEBUI_VERSION=(?<currentValue>v?[\\d.]+)"
       ],
@@ -32,7 +41,9 @@
     {
       "customType": "regex",
       "description": "Track obsidian-headless npm version",
-      "fileMatch": ["^config/versions\\.env$"],
+      "fileMatch": [
+        "^config/versions\\.env$"
+      ],
       "matchStrings": [
         "OBSIDIAN_HEADLESS_VERSION=(?<currentValue>[\\d.]+)"
       ],
@@ -43,7 +54,9 @@
     {
       "customType": "regex",
       "description": "Track AgentMemory npm package version",
-      "fileMatch": ["^config/versions\\.env$"],
+      "fileMatch": [
+        "^config/versions\\.env$"
+      ],
       "matchStrings": [
         "AGENTMEMORY_VERSION=(?<currentValue>[\\d.]+)"
       ],
@@ -55,14 +68,21 @@
   "packageRules": [
     {
       "description": "Auto-merge minor and patch version bumps for bundled components",
-      "matchDatasources": ["docker", "github-tags", "npm"],
+      "matchDatasources": [
+        "docker",
+        "github-tags",
+        "npm"
+      ],
       "matchDepNames": [
         "nousresearch/hermes-agent",
         "nesquena/hermes-webui",
         "obsidian-headless",
         "@agentmemory/agentmemory"
       ],
-      "matchUpdateTypes": ["minor", "patch"],
+      "matchUpdateTypes": [
+        "minor",
+        "patch"
+      ],
       "automerge": true,
       "automergeType": "pr",
       "platformAutomerge": true
