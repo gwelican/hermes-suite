@@ -11,13 +11,10 @@ steps:
       - git fetch origin --tags
       - >
         set -e;
-        ls -l 
-        cat ./versions.env
-        . ./versions.env;
-        echo "AGENT_VERSION=${AGENT_VERSION}";
-        echo "WEBUI_VERSION=${WEBUI_VERSION}";
-        OBSIDIAN_HEADLESS_VERSION="$(sed -n 's/^ARG OBSIDIAN_HEADLESS_VERSION=//p' Dockerfile | head -n1)";
-        echo "OBSIDIAN_HEADLESS_VERSION=${OBSIDIAN_HEADLESS_VERSION}";
+        AGENT_VERSION=$(grep '^AGENT_VERSION=' versions.env | awk -F= '{print $2}')
+        OBSIDIAN_HEADLESS_VERSION=$(grep '^OBSIDIAN_HEADLESS_VERSION=' versions.env | awk -F= '{print $2}')
+        WEBUI_VERSION=$(grep '^WEBUI_VERSION=' versions.env | awk -F= '{print $2}')
+
         AGENT_CLEAN="${AGENT_VERSION#v}";
         WEBUI_CLEAN="${WEBUI_VERSION#v}";
         TAG="v${AGENT_CLEAN}-${WEBUI_CLEAN}-ob${OBSIDIAN_HEADLESS_VERSION}";
