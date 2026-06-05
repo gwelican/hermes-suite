@@ -1,9 +1,3 @@
-
-volumes:
-  - name: docker-sock
-    host:
-      path: /var/run/docker.sock
-
 steps:
   - name: create-tag
     image: alpine/git
@@ -19,50 +13,41 @@ steps:
         AGENT_CLEAN="${AGENT_VERSION#v}"
         WEBUI_CLEAN="${WEBUI_VERSION#v}"
         TAG="v${AGENT_CLEAN}-${WEBUI_CLEAN}-ob${OBSIDIAN_HEADLESS_VERSION}"
-        echo "Computed tag: ${TAG}"
         if git rev-parse "${TAG}" >/dev/null 2>&1; then
           echo "Tag ${TAG} already exists. Skipping."
           exit 0
         fi
         git config user.email "ci@woodpecker"
         git config user.name "Woodpecker CI"
-        git tag -a "${TAG}" -m "Release ${TAG}  [agent=${AGENT_VERSION}, webui=${WEBUI_VERSION}, obsidian-headless=${OBSIDIAN_HEADLESS_VERSION}]"
+        git tag -a "${TAG}" -m "Release ${TAG}"
         git push "https://x-access-token:${github_token}@github.com/${CI_REPO_OWNER}/${CI_REPO_NAME}.git" "${TAG}"
-        echo "Pushed tag ${TAG}"
 
   - name: build-agentmemory
-    image: docker:cli
+    image: docker:dind
+    privileged: true
     when:
       event: push
       branch: main
-    volumes:
-      - name: docker-sock
-        path: /var/run/docker.sock
     commands:
       - |
         set -e
         set -a && . agentmemory/versions.env && set +a
-        IMAGE="ghcr.io/${CI_REPO_OWNER}/${CI_REPO_NAME}-agentmemory"
-        echo "Building ${IMAGE}:${AGENTMEMORY_VERSION}"
         echo "${github_token}" | docker login ghcr.io -u "${CI_REPO_OWNER}" --password-stdin
         docker build \
           -f agentmemory/Dockerfile \
-          -t "${IMAGE}:${AGENTMEMORY_VERSION}" \
-          -t "${IMAGE}:latest" \
+          -t "ghcr.io/${CI_REPO_OWNER}/${CI_REPO_NAME}-agentmemory:${AGENTMEMORY_VERSION}" \
+          -t "ghcr.io/${CI_REPO_OWNER}/${CI_REPO_NAME}-agentmemory:latest" \
           --build-arg "AGENTMEMORY_VERSION=${AGENTMEMORY_VERSION}" \
           --build-arg "AGENTMEMORY_III_VERSION=${AGENTMEMORY_III_VERSION}" \
           agentmemory
-        docker push "${IMAGE}:${AGENTMEMORY_VERSION}"
-        docker push "${IMAGE}:latest"
+        docker push "ghcr.io/${CI_REPO_OWNER}/${CI_REPO_NAME}-agentmemory:${AGENTMEMORY_VERSION}"
+        docker push "ghcr.io/${CI_REPO_OWNER}/${CI_REPO_NAME}-agentmemory:latest"
 
   - name: build-hermes
-    image: docker:cli
+    image: docker:dind
+    privileged: true
     when:
       event: tag
-      ref: "refs/tags/v*"
-    volumes:
-      - name: docker-sock
-        path: /var/run/docker.sock
     commands:
       - |
         set -e
@@ -70,7 +55,6 @@ steps:
         OBSIDIAN_HEADLESS_VERSION="$(grep -m1 '^ARG OBSIDIAN_HEADLESS_VERSION=' Dockerfile | sed 's/^ARG OBSIDIAN_HEADLESS_VERSION=//')"
         IMAGE="ghcr.io/${CI_REPO_OWNER}/${CI_REPO_NAME}"
         IMAGE_TAG="${AGENT_VERSION#v}-${WEBUI_VERSION#v}-ob${OBSIDIAN_HEADLESS_VERSION}"
-        echo "Building ${IMAGE}:${IMAGE_TAG}"
         echo "${github_token}" | docker login ghcr.io -u "${CI_REPO_OWNER}" --password-stdin
         docker build \
           --build-arg "AGENT_VERSION=${AGENT_VERSION}" \
