@@ -11,17 +11,23 @@ steps:
       - git fetch origin --tags
       - |
         set -e
+        echo "PWD: $(pwd)"
+        echo "Files in $(pwd):"
+        ls -la
+        echo "---"
         if [ ! -f versions.env ]; then
           echo "ERROR: versions.env not found in $(pwd)" >&2
-          ls -la
           exit 1
         fi
+        echo "versions.env content:"
+        cat versions.env
+        echo "---"
         AGENT_VERSION="$(grep '^AGENT_VERSION=' versions.env | cut -d= -f2-)"
         WEBUI_VERSION="$(grep '^WEBUI_VERSION=' versions.env | cut -d= -f2-)"
         OBSIDIAN_HEADLESS_VERSION="$(grep -m1 '^ARG OBSIDIAN_HEADLESS_VERSION=' Dockerfile | sed 's/^ARG OBSIDIAN_HEADLESS_VERSION=//')"
-        echo "AGENT_VERSION=${AGENT_VERSION}"
-        echo "WEBUI_VERSION=${WEBUI_VERSION}"
-        echo "OBSIDIAN_HEADLESS_VERSION=${OBSIDIAN_HEADLESS_VERSION}"
+        echo "AGENT_VERSION='${AGENT_VERSION}'"
+        echo "WEBUI_VERSION='${WEBUI_VERSION}'"
+        echo "OBSIDIAN_HEADLESS_VERSION='${OBSIDIAN_HEADLESS_VERSION}'"
         if [ -z "${AGENT_VERSION}" ] || [ -z "${WEBUI_VERSION}" ] || [ -z "${OBSIDIAN_HEADLESS_VERSION}" ]; then
           echo "ERROR: One or more version variables are empty" >&2
           exit 1
