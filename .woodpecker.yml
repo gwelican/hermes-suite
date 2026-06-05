@@ -4,6 +4,9 @@ steps:
     when:
       - event: push
         branch: main
+    environment:
+      github_token:
+        from_secret: GH_TOKEN
     commands:
       - git fetch origin --tags
       - |
@@ -34,7 +37,6 @@ steps:
         git config user.email "ci@woodpecker"
         git config user.name "Woodpecker CI"
         git tag -a "${TAG}" -m "Release ${TAG}"
-        set +x
         git push "https://x-access-token:${github_token}@github.com/${CI_REPO_OWNER}/${CI_REPO_NAME}.git" "${TAG}"
 
   - name: build-agentmemory
@@ -42,6 +44,9 @@ steps:
     when:
       - event: push
         branch: main
+    environment:
+      github_token:
+        from_secret: GH_TOKEN
     commands:
       - |
         set -e
@@ -60,6 +65,9 @@ steps:
     image: gcr.io/kaniko-project/executor:latest
     when:
       - event: tag
+    environment:
+      github_token:
+        from_secret: GH_TOKEN
     commands:
       - |
         set -e
