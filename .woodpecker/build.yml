@@ -1,12 +1,13 @@
 # =============================================================================
-# .woodpecker/build.yml — Build and push multi-arch image to GHCR
+# .woodpecker/build.yml — Build and push Hermes Suite image via Kaniko
 #
 # Triggered on: tag push matching refs/tags/v*
 #
-# Secrets required in Woodpecker UI:
-#   github_token — GitHub PAT with write:packages, read:repo scopes
+# Secret required in Woodpecker UI:
+#   github_token — GitHub PAT with write:packages scope
 #
-# Multi-arch via Docker Buildx + QEMU inside privileged dind.
+# Uses gcr.io/kaniko-project/executor:debug which includes a shell.
+# No privileged, no QEMU, no buildx, no Docker socket.
 # =============================================================================
 
 when:
@@ -14,71 +15,29 @@ when:
   ref: refs/tags/v*
 
 steps:
-  - name: fetch-tags
-    image: alpine/git
-    commands:
-      - git fetch origin --tags
-
-  - name: read-versions
-    image: alpine
-    commands:
-      - |
-        set -e
-        set -a && . versions.env && set +a
-        OBSIDIAN_HEADLESS_VERSION="$(sed -n 's/^ARG OBSIDIAN_HEADLESS_VERSION=//p; T; q' Dockerfile)"
-        # Write to file for downstream steps (Woodpecker steps don't share env)
-        {
-          echo "AGENT_VERSION=${AGENT_VERSION}"
-          echo "WEBUI_VERSION=${WEBUI_VERSION}"
-          echo "OBSIDIAN_HEADLESS_VERSION=${OBSIDIAN_HEADLESS_VERSION}"
-          echo "AGENT_CLEAN=${AGENT_VERSION#v}"
-          echo "WEBUI_CLEAN=${WEBUI_VERSION#v}"
-          echo "IMAGE_TAG=${AGENT_VERSION#v}-${WEBUI_VERSION#v}-ob${OBSIDIAN_HEADLESS_VERSION}"
-        } > .env.ci
-        cat .env.ci
-
-  - name: setup-qemu
-    image: docker:dind
-    privileged: true
-    commands:
-      - docker run --rm --privileged tonistiigi/binfmt:latest --install all
-
-  - name: setup-buildx
-    image: docker:dind
-    privileged: true
-    commands:
-      - docker buildx create --name ci-builder --use 2>/dev/null || docker buildx use ci-builder
-      - docker buildx inspect --bootstrap
-
-  - name: login-ghcr
-    image: docker:dind
-    privileged: true
+  - name: build-push
+    image: gcr.io/kaniko-project/executor:debug
     environment:
       GITHUB_TOKEN:
         from_secret: github_token
     commands:
-      - echo "$GITHUB_TOKEN" | docker login ghcr.io -u "$CI_REPO_OWNER" --password-stdin
-
-  - name: build-push
-    image: docker:dind
-    privileged: true
-    commands:
-      - set -e
-      - set -a && . .env.ci && set +a
       - |
-        docker buildx build \
-          --platform linux/amd64,linux/arm64 \
+        set -e
+        set -a && . versions.env && set +a
+        OBSIDIAN_HEADLESS_VERSION="$(grep -m1 '^ARG OBSIDIAN_HEADLESS_VERSION=' Dockerfile | sed 's/^ARG OBSIDIAN_HEADLESS_VERSION=//')"
+        mkdir -p /kaniko/.docker
+        printf '%s:%s' "${CI_REPO_OWNER}" "${GITHUB_TOKEN}" | base64 -w0 > /tmp/auth_b64
+        AUTH="$(cat /tmp/auth_b64)"
+        echo "{\"auths\":{\"ghcr.io\":{\"auth\":\"${AUTH}\"}}}" > /kaniko/.docker/config.json
+        rm /tmp/auth_b64
+        IMAGE="ghcr.io/${CI_REPO_OWNER}/${CI_REPO_NAME}"
+        IMAGE_TAG="${AGENT_VERSION#v}-${WEBUI_VERSION#v}-ob${OBSIDIAN_HEADLESS_VERSION}"
+        echo "Building ${IMAGE}:${IMAGE_TAG}"
+        /kaniko/executor \
+          --context . \
+          --dockerfile Dockerfile \
+          --destination "${IMAGE}:${IMAGE_TAG}" \
+          --destination "${IMAGE}:latest" \
           --build-arg "AGENT_VERSION=${AGENT_VERSION}" \
           --build-arg "HERMES_WEBUI_VERSION=${WEBUI_VERSION}" \
-          --build-arg "OBSIDIAN_HEADLESS_VERSION=${OBSIDIAN_HEADLESS_VERSION}" \
-          -t "ghcr.io/${CI_REPO_OWNER}/${CI_REPO_NAME}:${IMAGE_TAG}" \
-          -t "ghcr.io/${CI_REPO_OWNER}/${CI_REPO_NAME}:latest" \
-          --push .
-
-  - name: verify-manifest
-    image: docker:dind
-    privileged: true
-    commands:
-      - set -e
-      - set -a && . .env.ci && set +a
-      - docker buildx imagetools inspect "ghcr.io/${CI_REPO_OWNER}/${CI_REPO_NAME}:${IMAGE_TAG}"
+          --build-arg "OBSIDIAN_HEADLESS_VERSION=${OBSIDIAN_HEADLESS_VERSION}"

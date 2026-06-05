@@ -1,12 +1,13 @@
 # =============================================================================
-# .woodpecker/agentmemory.yml — Build and push standalone AgentMemory image
+# .woodpecker/agentmemory.yml — Build and push AgentMemory image via Kaniko
 #
 # Triggered on: push to main branch
 #
-# Secrets required in Woodpecker UI:
+# Secret required in Woodpecker UI:
 #   github_token — GitHub PAT with write:packages scope
 #
-# No QEMU, no buildx. Native amd64 build only.
+# Uses gcr.io/kaniko-project/executor:debug which includes a shell.
+# No privileged, no QEMU, no buildx, no Docker socket.
 # =============================================================================
 
 when:
@@ -14,41 +15,24 @@ when:
   branch: main
 
 steps:
-  - name: read-versions
-    image: alpine
-    commands:
-      - |
-        set -e
-        set -a && . agentmemory/versions.env && set +a
-        {
-          echo "AGENTMEMORY_VERSION=${AGENTMEMORY_VERSION}"
-          echo "AGENTMEMORY_III_VERSION=${AGENTMEMORY_III_VERSION}"
-          echo "IMAGE=ghcr.io/${CI_REPO_OWNER}/${CI_REPO_NAME}-agentmemory"
-        } > .env.agentmemory
-        cat .env.agentmemory
-
-  - name: login-ghcr
-    image: docker:dind
-    privileged: true
+  - name: build-push
+    image: gcr.io/kaniko-project/executor:debug
     environment:
       GITHUB_TOKEN:
         from_secret: github_token
     commands:
-      - echo "$GITHUB_TOKEN" | docker login ghcr.io -u "$CI_REPO_OWNER" --password-stdin
-
-  - name: build-push
-    image: docker:dind
-    privileged: true
-    commands:
-      - set -e
-      - set -a && . .env.agentmemory && set +a
       - |
-        docker build \
-          -f agentmemory/Dockerfile \
-          -t "${IMAGE}:${AGENTMEMORY_VERSION}" \
-          -t "${IMAGE}:latest" \
+        set -e
+        set -a && . agentmemory/versions.env && set +a
+        mkdir -p /kaniko/.docker
+        printf '%s:%s' "${CI_REPO_OWNER}" "${GITHUB_TOKEN}" | base64 -w0 > /tmp/auth_b64
+        AUTH="$(cat /tmp/auth_b64)"
+        echo "{\"auths\":{\"ghcr.io\":{\"auth\":\"${AUTH}\"}}}" > /kaniko/.docker/config.json
+        rm /tmp/auth_b64
+        /kaniko/executor \
+          --context agentmemory \
+          --dockerfile Dockerfile \
+          --destination "ghcr.io/${CI_REPO_OWNER}/${CI_REPO_NAME}-agentmemory:${AGENTMEMORY_VERSION}" \
+          --destination "ghcr.io/${CI_REPO_OWNER}/${CI_REPO_NAME}-agentmemory:latest" \
           --build-arg "AGENTMEMORY_VERSION=${AGENTMEMORY_VERSION}" \
-          --build-arg "AGENTMEMORY_III_VERSION=${AGENTMEMORY_III_VERSION}" \
-          agentmemory
-      - docker push "${IMAGE}:${AGENTMEMORY_VERSION}"
-      - docker push "${IMAGE}:latest"
+          --build-arg "AGENTMEMORY_III_VERSION=${AGENTMEMORY_III_VERSION}"
