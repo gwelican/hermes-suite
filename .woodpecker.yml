@@ -1,3 +1,10 @@
+services:
+  - name: docker
+    image: docker:dind
+    privileged: true
+    environment:
+      DOCKER_TLS_CERTDIR: ""
+
 steps:
   - name: create-tag
     image: alpine/git
@@ -8,11 +15,26 @@ steps:
       - git fetch origin --tags
       - |
         set -e
-        set -a && . versions.env && set +a
+        if [ ! -f versions.env ]; then
+          echo "ERROR: versions.env not found" >&2
+          ls -la
+          exit 1
+        fi
+        set -a
+        . versions.env
+        set +a
         OBSIDIAN_HEADLESS_VERSION="$(grep -m1 '^ARG OBSIDIAN_HEADLESS_VERSION=' Dockerfile | sed 's/^ARG OBSIDIAN_HEADLESS_VERSION=//')"
+        echo "AGENT_VERSION=${AGENT_VERSION}"
+        echo "WEBUI_VERSION=${WEBUI_VERSION}"
+        echo "OBSIDIAN_HEADLESS_VERSION=${OBSIDIAN_HEADLESS_VERSION}"
+        if [ -z "${AGENT_VERSION}" ] || [ -z "${WEBUI_VERSION}" ] || [ -z "${OBSIDIAN_HEADLESS_VERSION}" ]; then
+          echo "ERROR: One or more version variables are empty" >&2
+          exit 1
+        fi
         AGENT_CLEAN="${AGENT_VERSION#v}"
         WEBUI_CLEAN="${WEBUI_VERSION#v}"
         TAG="v${AGENT_CLEAN}-${WEBUI_CLEAN}-ob${OBSIDIAN_HEADLESS_VERSION}"
+        echo "TAG=${TAG}"
         if git rev-parse "${TAG}" >/dev/null 2>&1; then
           echo "Tag ${TAG} already exists. Skipping."
           exit 0
@@ -27,8 +49,8 @@ steps:
     when:
       - event: push
         branch: main
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      DOCKER_HOST: tcp://docker:2375
     commands:
       - |
         set -e
@@ -48,22 +70,21 @@ steps:
     image: docker:cli
     when:
       - event: tag
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      DOCKER_HOST: tcp://docker:2375
     commands:
       - |
         set -e
         set -a && . versions.env && set +a
         OBSIDIAN_HEADLESS_VERSION="$(grep -m1 '^ARG OBSIDIAN_HEADLESS_VERSION=' Dockerfile | sed 's/^ARG OBSIDIAN_HEADLESS_VERSION=//')"
-        IMAGE="ghcr.io/${CI_REPO_OWNER}/${CI_REPO_NAME}"
         IMAGE_TAG="${AGENT_VERSION#v}-${WEBUI_VERSION#v}-ob${OBSIDIAN_HEADLESS_VERSION}"
         echo "${github_token}" | docker login ghcr.io -u "${CI_REPO_OWNER}" --password-stdin
         docker build \
           --build-arg "AGENT_VERSION=${AGENT_VERSION}" \
           --build-arg "HERMES_WEBUI_VERSION=${WEBUI_VERSION}" \
           --build-arg "OBSIDIAN_HEADLESS_VERSION=${OBSIDIAN_HEADLESS_VERSION}" \
-          -t "${IMAGE}:${IMAGE_TAG}" \
-          -t "${IMAGE}:latest" \
+          -t "ghcr.io/${CI_REPO_OWNER}/${CI_REPO_NAME}:${IMAGE_TAG}" \
+          -t "ghcr.io/${CI_REPO_OWNER}/${CI_REPO_NAME}:latest" \
           .
-        docker push "${IMAGE}:${IMAGE_TAG}"
-        docker push "${IMAGE}:latest"
+        docker push "ghcr.io/${CI_REPO_OWNER}/${CI_REPO_NAME}:${IMAGE_TAG}"
+        docker push "ghcr.io/${CI_REPO_OWNER}/${CI_REPO_NAME}:latest"
