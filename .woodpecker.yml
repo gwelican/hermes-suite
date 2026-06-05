@@ -1,16 +1,3 @@
-# =============================================================================
-# .woodpecker.yml — Single workflow for Hermes Suite CI/CD
-#
-# Steps:
-#   1. create-tag      (push to main)   — compute and push release tag
-#   2. build-agentmemory (push to main) — build/push standalone AgentMemory image
-#   3. build-hermes    (tag v*)         — build/push Hermes Suite image
-#
-# The create-tag step pushes a new tag, which triggers a webhook that starts
-# a fresh pipeline run where build-hermes executes.
-#
-# Expects github_token in the agent environment (via WOODPECKER_ENVIRONMENT).
-# =============================================================================
 
 volumes:
   - name: docker-sock
@@ -28,7 +15,7 @@ steps:
       - |
         set -e
         set -a && . versions.env && set +a
-        OBSIDIAN_HEADLESS_VERSION="$(grep -m1 '^ARG OBSIDIAN_HEADLESS_VERSION=' Dockerfile | sed 's/^ARG OBSIDIAN_HEADLESS_VERSION=//' | tr -d '\n')"
+        OBSIDIAN_HEADLESS_VERSION="$(grep -m1 '^ARG OBSIDIAN_HEADLESS_VERSION=' Dockerfile | sed 's/^ARG OBSIDIAN_HEADLESS_VERSION=//')"
         AGENT_CLEAN="${AGENT_VERSION#v}"
         WEBUI_CLEAN="${WEBUI_VERSION#v}"
         TAG="v${AGENT_CLEAN}-${WEBUI_CLEAN}-ob${OBSIDIAN_HEADLESS_VERSION}"
@@ -72,7 +59,7 @@ steps:
     image: docker:cli
     when:
       event: tag
-      ref: refs/tags/v*
+      ref: "refs/tags/v*"
     volumes:
       - name: docker-sock
         path: /var/run/docker.sock
@@ -80,7 +67,7 @@ steps:
       - |
         set -e
         set -a && . versions.env && set +a
-        OBSIDIAN_HEADLESS_VERSION="$(grep -m1 '^ARG OBSIDIAN_HEADLESS_VERSION=' Dockerfile | sed 's/^ARG OBSIDIAN_HEADLESS_VERSION=//' | tr -d '\n')"
+        OBSIDIAN_HEADLESS_VERSION="$(grep -m1 '^ARG OBSIDIAN_HEADLESS_VERSION=' Dockerfile | sed 's/^ARG OBSIDIAN_HEADLESS_VERSION=//')"
         IMAGE="ghcr.io/${CI_REPO_OWNER}/${CI_REPO_NAME}"
         IMAGE_TAG="${AGENT_VERSION#v}-${WEBUI_VERSION#v}-ob${OBSIDIAN_HEADLESS_VERSION}"
         echo "Building ${IMAGE}:${IMAGE_TAG}"
