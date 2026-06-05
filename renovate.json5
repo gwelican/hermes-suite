@@ -9,7 +9,11 @@
   "extends": [
     "config:recommended",
     ":automergeBranch",
-    ":rebaseStalePrs"
+    ":rebaseStalePrs",
+    ":dependencyDashboard",
+    ":disableRateLimiting",
+    ":semanticCommits",
+    ":timezone(America/Los_Angeles)",
   ],
   "customManagers": [
     {
