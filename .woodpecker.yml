@@ -11,6 +11,8 @@ steps:
       - git fetch origin --tags
       - >
         set -e;
+        ls -l 
+        cat ./versions.env
         . ./versions.env;
         echo "AGENT_VERSION=${AGENT_VERSION}";
         echo "WEBUI_VERSION=${WEBUI_VERSION}";
