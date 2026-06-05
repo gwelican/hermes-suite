@@ -42,7 +42,7 @@ RUN set -eux; \
     iii_bin="$(find /tmp/iii -type f -name iii -perm /111 | head -n 1)"; \
     test -n "$iii_bin"; \
     install -m 0755 "$iii_bin" /home/node/.agentmemory/bin/iii; \
-    /home/node/.agentmemory/bin/iii --version; \
+    /home/node/.agentmemory/bin/iii --version || echo "Warning: iii --version failed (common in cross-arch builds)"; \
     rm -rf /tmp/iii /tmp/iii.tgz; \
     chown -R node:node /home/node/.agentmemory
 
