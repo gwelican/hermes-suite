@@ -1,3 +1,8 @@
+volumes:
+  - name: docker-sock
+    host:
+      path: /var/run/docker.sock
+
 steps:
   - name: create-tag
     image: alpine/git
@@ -23,11 +28,13 @@ steps:
         git push "https://x-access-token:${github_token}@github.com/${CI_REPO_OWNER}/${CI_REPO_NAME}.git" "${TAG}"
 
   - name: build-agentmemory
-    image: docker:dind
-    privileged: true
+    image: docker:cli
     when:
       event: push
       branch: main
+    volumes:
+      - name: docker-sock
+        path: /var/run/docker.sock
     commands:
       - |
         set -e
@@ -44,10 +51,12 @@ steps:
         docker push "ghcr.io/${CI_REPO_OWNER}/${CI_REPO_NAME}-agentmemory:latest"
 
   - name: build-hermes
-    image: docker:dind
-    privileged: true
+    image: docker:cli
     when:
       event: tag
+    volumes:
+      - name: docker-sock
+        path: /var/run/docker.sock
     commands:
       - |
         set -e
