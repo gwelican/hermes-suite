@@ -3,7 +3,7 @@
 # Standalone AgentMemory server image
 # =============================================================================
 
-FROM node:24-bookworm-slim
+FROM ghcr.io/gwelican/node:24-bookworm-slim
 
 ARG AGENTMEMORY_VERSION=0.9.26
 ARG AGENTMEMORY_III_VERSION=0.11.2
