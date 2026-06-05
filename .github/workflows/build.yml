@@ -123,6 +123,7 @@ jobs:
   build-hermes:
     if: github.ref == 'refs/heads/main'
     needs: create-tag
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v6
