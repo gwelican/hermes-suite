@@ -38,7 +38,46 @@ The `custom/` directory is merged into the image at build time. Use it for your 
 Included additions:
 
 - `agentmemory/` — standalone AgentMemory image, local compose file, and Kubernetes manifest.
-- `custom/skills/obsidian_sync/` — local Obsidian sync helper skill.
+- `custom/skills/obsidian_sync/` — Obsidian sync helper skill copied into the Hermes image.
+- `custom/bin/obsidian-sync-daemon.py` — periodic sync loop run inside the Hermes container.
+- `custom/supervisord.d/obsidian-sync.conf` — supervisord program for Obsidian sync.
+
+## Obsidian Sync
+
+Obsidian sync runs inside the Hermes container using the official `obsidian-headless` CLI (`ob sync --continuous`).
+
+Default environment:
+
+```text
+OBSIDIAN_VAULT_PATH=/workspace/obsidian
+OBSIDIAN_SYNC_ENABLED=true
+OBSIDIAN_SYNC_ONESHOT=false
+```
+
+Optional non-interactive setup:
+
+```text
+OBSIDIAN_EMAIL=<obsidian account email>
+OBSIDIAN_PASSWORD=<obsidian account password>
+OBSIDIAN_MFA=<one-time mfa code, if needed>
+OBSIDIAN_REMOTE_VAULT=<remote vault id or name>
+OBSIDIAN_E2EE_PASSWORD=<end-to-end encryption password, if needed>
+OBSIDIAN_DEVICE_NAME=hermes-suite
+OBSIDIAN_CONFIG_DIR=.obsidian
+OBSIDIAN_SYNC_MODE=bidirectional
+OBSIDIAN_CONFLICT_STRATEGY=merge
+```
+
+If credentials are not supplied, mount a preconfigured Obsidian/`ob` home into `/opt/data` and a vault at `/workspace/obsidian`.
+
+Manual setup inside the running container:
+
+```bash
+ob login
+cd /workspace/obsidian
+ob sync-setup --vault "<vault id or name>"
+ob sync --continuous
+```
 
 ## AgentMemory
 

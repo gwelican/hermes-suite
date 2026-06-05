@@ -92,7 +92,13 @@ RUN chown -R hermes:hermes /opt/hermes-webui/venv
 # Copy files from custom/ into the image.  Rebuild to pick up changes.
 # ---------------------------------------------------------------------------
 # Ensure directories exist even if custom/ folders are empty
-RUN mkdir -p /opt/hermes/skills/custom /opt/hermes-suite/entrypoint.d /opt/hermes-suite/supervisord.d
+RUN mkdir -p /opt/hermes/skills/custom /opt/hermes-suite/bin /opt/hermes-suite/entrypoint.d /opt/hermes-suite/supervisord.d
+
+
+# Official Obsidian Sync CLI (`ob`). Requires Node 22+, provided by the
+# hermes-agent base image.
+ARG OBSIDIAN_HEADLESS_VERSION=0.0.10
+RUN npm install -g --no-audit "obsidian-headless@${OBSIDIAN_HEADLESS_VERSION}"
 
 COPY custom/requirements.txt /tmp/custom-requirements.txt
 RUN if [ -s /tmp/custom-requirements.txt ]; then \
@@ -100,9 +106,10 @@ RUN if [ -s /tmp/custom-requirements.txt ]; then \
     fi
 
 COPY custom/skills/ /opt/hermes/skills/custom/
+COPY custom/bin/ /opt/hermes-suite/bin/
 COPY custom/entrypoint.d/ /opt/hermes-suite/entrypoint.d/
 COPY custom/supervisord.d/ /opt/hermes-suite/supervisord.d/
-RUN chmod -R +x /opt/hermes-suite/entrypoint.d 2>/dev/null || true
+RUN chmod -R +x /opt/hermes-suite/bin /opt/hermes-suite/entrypoint.d 2>/dev/null || true
 
 # Stage 6: Set up supervisord config and startup script
 # ---------------------------------------------------------------------------
@@ -117,13 +124,16 @@ RUN chmod +x /opt/hermes-suite/start.sh
 # Re-declare ARGs after FROM so they are available in LABEL
 ARG AGENT_VERSION=v2026.5.29.2
 ARG HERMES_WEBUI_VERSION=v0.51.230
+ARG OBSIDIAN_HEADLESS_VERSION=0.0.10
+
 
 LABEL org.opencontainers.image.title="Hermes Suite" \
       org.opencontainers.image.description="All-in-one: hermes-agent + hermes-webui + hermes-dashboard" \
       org.opencontainers.image.source="https://github.com/sunnysktsang/hermes-suite" \
       org.opencontainers.image.vendor="sunnysktsang" \
       hermes-suite.agent-version="${AGENT_VERSION}" \
-      hermes-suite.webui-version="${HERMES_WEBUI_VERSION}"
+      hermes-suite.webui-version="${HERMES_WEBUI_VERSION}" \
+      hermes-suite.obsidian-headless-version="${OBSIDIAN_HEADLESS_VERSION}"
 
 ENV PATH="/opt/hermes/.venv/bin:/opt/hermes-webui/venv/bin:$PATH"
 ENV HERMES_HOME=/opt/data

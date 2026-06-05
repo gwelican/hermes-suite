@@ -39,13 +39,24 @@
       "datasourceTemplate": "npm",
       "depNameTemplate": "@agentmemory/agentmemory",
       "versioningTemplate": "semver"
+    },
+    {
+      "customType": "regex",
+      "description": "Track Obsidian Sync CLI version in Dockerfile",
+      "fileMatch": ["^Dockerfile$"],
+      "matchStrings": [
+        "ARG OBSIDIAN_HEADLESS_VERSION=(?<currentValue>[\\d.]+)"
+      ],
+      "datasourceTemplate": "npm",
+      "depNameTemplate": "obsidian-headless",
+      "versioningTemplate": "semver"
     }
   ],
   "packageRules": [
     {
       "description": "Auto-merge version bumps for bundled components",
       "matchDatasources": ["docker", "github-tags", "npm"],
-      "matchDepNames": ["nousresearch/hermes-agent", "nesquena/hermes-webui", "@agentmemory/agentmemory"],
+      "matchDepNames": ["nousresearch/hermes-agent", "nesquena/hermes-webui", "@agentmemory/agentmemory", "obsidian-headless"],
       "matchUpdateTypes": ["minor", "patch"],
       "automerge": true,
       "automergeType": "pr",
