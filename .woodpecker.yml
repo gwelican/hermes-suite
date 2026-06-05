@@ -12,19 +12,17 @@ steps:
       - |
         set -e
         echo "PWD: $(pwd)"
-        echo "Files in $(pwd):"
         ls -la
-        echo "---"
         if [ ! -f versions.env ]; then
-          echo "ERROR: versions.env not found in $(pwd)" >&2
+          echo "ERROR: versions.env not found" >&2
           exit 1
         fi
         echo "versions.env content:"
         cat versions.env
         echo "---"
-        AGENT_VERSION="$(grep '^AGENT_VERSION=' versions.env | cut -d= -f2-)"
-        WEBUI_VERSION="$(grep '^WEBUI_VERSION=' versions.env | cut -d= -f2-)"
-        OBSIDIAN_HEADLESS_VERSION="$(grep -m1 '^ARG OBSIDIAN_HEADLESS_VERSION=' Dockerfile | sed 's/^ARG OBSIDIAN_HEADLESS_VERSION=//')"
+        AGENT_VERSION="$(sed -n 's/^AGENT_VERSION=//p' versions.env)"
+        WEBUI_VERSION="$(sed -n 's/^WEBUI_VERSION=//p' versions.env)"
+        OBSIDIAN_HEADLESS_VERSION="$(sed -n 's/^ARG OBSIDIAN_HEADLESS_VERSION=//p' Dockerfile | head -n1)"
         echo "AGENT_VERSION='${AGENT_VERSION}'"
         echo "WEBUI_VERSION='${WEBUI_VERSION}'"
         echo "OBSIDIAN_HEADLESS_VERSION='${OBSIDIAN_HEADLESS_VERSION}'"
@@ -56,8 +54,8 @@ steps:
     commands:
       - |
         set -e
-        AGENTMEMORY_VERSION="$(grep '^AGENTMEMORY_VERSION=' agentmemory/versions.env | cut -d= -f2-)"
-        AGENTMEMORY_III_VERSION="$(grep '^AGENTMEMORY_III_VERSION=' agentmemory/versions.env | cut -d= -f2-)"
+        AGENTMEMORY_VERSION="$(sed -n 's/^AGENTMEMORY_VERSION=//p' agentmemory/versions.env)"
+        AGENTMEMORY_III_VERSION="$(sed -n 's/^AGENTMEMORY_III_VERSION=//p' agentmemory/versions.env)"
         /kaniko/executor \
           --dockerfile agentmemory/Dockerfile \
           --context dir://agentmemory \
@@ -77,9 +75,9 @@ steps:
     commands:
       - |
         set -e
-        AGENT_VERSION="$(grep '^AGENT_VERSION=' versions.env | cut -d= -f2-)"
-        WEBUI_VERSION="$(grep '^WEBUI_VERSION=' versions.env | cut -d= -f2-)"
-        OBSIDIAN_HEADLESS_VERSION="$(grep -m1 '^ARG OBSIDIAN_HEADLESS_VERSION=' Dockerfile | sed 's/^ARG OBSIDIAN_HEADLESS_VERSION=//')"
+        AGENT_VERSION="$(sed -n 's/^AGENT_VERSION=//p' versions.env)"
+        WEBUI_VERSION="$(sed -n 's/^WEBUI_VERSION=//p' versions.env)"
+        OBSIDIAN_HEADLESS_VERSION="$(sed -n 's/^ARG OBSIDIAN_HEADLESS_VERSION=//p' Dockerfile | head -n1)"
         IMAGE_TAG="${AGENT_VERSION#v}-${WEBUI_VERSION#v}-ob${OBSIDIAN_HEADLESS_VERSION}"
         /kaniko/executor \
           --dockerfile Dockerfile \
