@@ -81,3 +81,5 @@ steps:
         --build-arg "HERMES_WEBUI_VERSION=$${WEBUI_VERSION}"
         --build-arg "OBSIDIAN_HEADLESS_VERSION=$${OBSIDIAN_HEADLESS_VERSION}"
         --cache=true
+
+#ok
