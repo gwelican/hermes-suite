@@ -103,7 +103,7 @@ jobs:
           password: ${{ secrets.GH_TOKEN }}
 
       - name: Build and push AgentMemory
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: docker/agentmemory.Dockerfile
@@ -165,7 +165,7 @@ jobs:
           password: ${{ secrets.GH_TOKEN }}
 
       - name: Build and push Hermes
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: docker/hermes.Dockerfile
