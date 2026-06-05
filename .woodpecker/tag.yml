@@ -29,9 +29,10 @@ steps:
       - set -e
       - set -a && . versions.env && set +a
       - |
+        OBSIDIAN_HEADLESS_VERSION="$(sed -n 's/^ARG OBSIDIAN_HEADLESS_VERSION=//p; T; q' Dockerfile)"
         AGENT_CLEAN="${AGENT_VERSION#v}"
         WEBUI_CLEAN="${WEBUI_VERSION#v}"
-        TAG="v${AGENT_CLEAN}-${WEBUI_CLEAN}"
+        TAG="v${AGENT_CLEAN}-${WEBUI_CLEAN}-ob${OBSIDIAN_HEADLESS_VERSION}"
         echo "Computed tag: ${TAG}"
         if git rev-parse "${TAG}" >/dev/null 2>&1; then
           echo "Tag ${TAG} already exists. Skipping."
@@ -39,6 +40,6 @@ steps:
         fi
         git config user.email "ci@woodpecker"
         git config user.name "Woodpecker CI"
-        git tag -a "${TAG}" -m "Release ${TAG}  [agent=${AGENT_VERSION}, webui=${WEBUI_VERSION}]"
+        git tag -a "${TAG}" -m "Release ${TAG}  [agent=${AGENT_VERSION}, webui=${WEBUI_VERSION}, obsidian-headless=${OBSIDIAN_HEADLESS_VERSION}]"
         git push "https://x-access-token:${GITHUB_TOKEN}@github.com/${CI_REPO_OWNER}/${CI_REPO_NAME}.git" "${TAG}"
         echo "Pushed tag ${TAG}"
