@@ -7,17 +7,13 @@ steps:
     environment:
       github_token:
         from_secret: GH_TOKEN
+      AGENT_VERSION: 2026.5.29.2
+      WEBUI_VERSION: 0.51.266
+      OBSIDIAN_HEADLESS_VERSION: 0.0.10
     commands:
       - git fetch origin --tags
       - >
         set -e;
-        ls -l;
-        AGENT_VERSION=$(grep '^AGENT_VERSION=' versions.env | awk -F= '{print $2}');
-        OBSIDIAN_HEADLESS_VERSION=$(grep '^OBSIDIAN_HEADLESS_VERSION=' versions.env | awk -F= '{print $2}');
-        WEBUI_VERSION=$(grep '^WEBUI_VERSION=' versions.env | awk -F= '{print $2}');
-
-        AGENT_CLEAN="${AGENT_VERSION#v}";
-        WEBUI_CLEAN="${WEBUI_VERSION#v}";
         TAG="v${AGENT_CLEAN}-${WEBUI_CLEAN}-ob${OBSIDIAN_HEADLESS_VERSION}";
         echo "TAG=${TAG}";
         git rev-parse "${TAG}" >/dev/null 2>&1 && { echo "Tag ${TAG} already exists. Skipping."; exit 0; };
