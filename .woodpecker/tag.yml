@@ -3,11 +3,7 @@
 #
 # Triggered on: push to main branch
 #
-# Reads versions.env, computes the compound tag, and pushes it if it does not
-# already exist. The tag push then triggers .woodpecker/build.yml.
-#
-# Secrets required:
-#   github_token — GitHub PAT with repo scope (push tags)
+# Expects github_token in the agent environment (via WOODPECKER_ENVIRONMENT).
 # =============================================================================
 
 when:
@@ -22,9 +18,6 @@ steps:
 
   - name: create-tag
     image: alpine/git
-    environment:
-      GITHUB_TOKEN:
-        from_secret: github_token
     commands:
       - set -e
       - set -a && . versions.env && set +a
@@ -41,5 +34,5 @@ steps:
         git config user.email "ci@woodpecker"
         git config user.name "Woodpecker CI"
         git tag -a "${TAG}" -m "Release ${TAG}  [agent=${AGENT_VERSION}, webui=${WEBUI_VERSION}, obsidian-headless=${OBSIDIAN_HEADLESS_VERSION}]"
-        git push "https://x-access-token:${GITHUB_TOKEN}@github.com/${CI_REPO_OWNER}/${CI_REPO_NAME}.git" "${TAG}"
+        git push "https://x-access-token:${github_token}@github.com/${CI_REPO_OWNER}/${CI_REPO_NAME}.git" "${TAG}"
         echo "Pushed tag ${TAG}"
