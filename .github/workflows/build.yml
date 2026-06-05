@@ -1,13 +1,13 @@
-name: Build and Push Multi-Arch Image
+name: Build and Push Images
 
 on:
   push:
-    tags:
-      - "v*"
+    branches:
+      - main
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: gwelican/hermes-suite
+  IMAGE_NAME: ${{ github.repository }}
 
 jobs:
   build:
@@ -20,31 +20,31 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Parse versions
+      - name: Load versions
         id: versions
         run: |
-          TAG="${GITHUB_REF_NAME}"
-          # Strip leading 'v' for image tag
-          DOCKER_TAG="${TAG#v}"
-          echo "docker_tag=${DOCKER_TAG}" >> "$GITHUB_OUTPUT"
+          set -a && . versions.env && set +a
+          set -a && . agentmemory/versions.env && set +a
 
-          # Tag format: {agent}-{webui}-ob{obsidian}
-          # e.g. 2026.5.29.2-0.51.230-ob0.0.10
-          # Extract agent version (everything before last two hyphens)
-          # and webui version (between those hyphens)
-          AGENT_VER="${DOCKER_TAG%-*-*}"
-          WEBUI_OB="${DOCKER_TAG#${AGENT_VER}-}"
-          WEBUI_VER="${WEBUI_OB%-*}"
-          OB_VER="${WEBUI_OB##*-ob}"
+          OBSIDIAN_HEADLESS_VERSION="$(grep -m1 '^ARG OBSIDIAN_HEADLESS_VERSION=' Dockerfile | sed 's/^ARG OBSIDIAN_HEADLESS_VERSION=//')"
 
-          echo "agent_version=v${AGENT_VER}" >> "$GITHUB_OUTPUT"
-          echo "webui_version=v${WEBUI_VER}" >> "$GITHUB_OUTPUT"
-          echo "obsidian_version=${OB_VER}" >> "$GITHUB_OUTPUT"
+          AGENT_CLEAN="${AGENT_VERSION#v}"
+          WEBUI_CLEAN="${WEBUI_VERSION#v}"
+          HERMES_TAG="${AGENT_CLEAN}-${WEBUI_CLEAN}-ob${OBSIDIAN_HEADLESS_VERSION}"
 
-          echo "Suite tag:     ${DOCKER_TAG}"
-          echo "Agent version: v${AGENT_VER}"
-          echo "WebUI version: v${WEBUI_VER}"
-          echo "Obsidian CLI:  ${OB_VER}"
+          echo "agent_version=${AGENT_VERSION}" >> "$GITHUB_OUTPUT"
+          echo "webui_version=${WEBUI_VERSION}" >> "$GITHUB_OUTPUT"
+          echo "obsidian_version=${OBSIDIAN_HEADLESS_VERSION}" >> "$GITHUB_OUTPUT"
+          echo "hermes_tag=${HERMES_TAG}" >> "$GITHUB_OUTPUT"
+
+          echo "agentmemory_version=${AGENTMEMORY_VERSION}" >> "$GITHUB_OUTPUT"
+          echo "agentmemory_iii_version=${AGENTMEMORY_III_VERSION}" >> "$GITHUB_OUTPUT"
+
+          echo "Hermes tag:    ${HERMES_TAG}"
+          echo "Agent:         ${AGENT_VERSION}"
+          echo "WebUI:         ${WEBUI_VERSION}"
+          echo "Obsidian:      ${OBSIDIAN_HEADLESS_VERSION}"
+          echo "AgentMemory:   ${AGENTMEMORY_VERSION}"
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -59,7 +59,23 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GH_TOKEN }}
 
-      - name: Build and push
+      - name: Build and push AgentMemory
+        uses: docker/build-push-action@v6
+        with:
+          context: agentmemory
+          file: agentmemory/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          build-args: |
+            AGENTMEMORY_VERSION=${{ steps.versions.outputs.agentmemory_version }}
+            AGENTMEMORY_III_VERSION=${{ steps.versions.outputs.agentmemory_iii_version }}
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-agentmemory:${{ steps.versions.outputs.agentmemory_version }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-agentmemory:latest
+          cache-from: type=gha,scope=agentmemory
+          cache-to: type=gha,mode=max,scope=agentmemory
+
+      - name: Build and push Hermes
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -70,7 +86,7 @@ jobs:
             HERMES_WEBUI_VERSION=${{ steps.versions.outputs.webui_version }}
             OBSIDIAN_HEADLESS_VERSION=${{ steps.versions.outputs.obsidian_version }}
           tags: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.versions.outputs.docker_tag }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.versions.outputs.hermes_tag }}
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=hermes
+          cache-to: type=gha,mode=max,scope=hermes
