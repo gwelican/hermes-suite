@@ -1,0 +1,77 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: agentmemory-data
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: agentmemory
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: agentmemory
+  template:
+    metadata:
+      labels:
+        app: agentmemory
+    spec:
+      containers:
+        - name: agentmemory
+          image: ghcr.io/gwelican/hermes-suite-agentmemory:0.9.26
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: NODE_ENV
+              value: production
+            - name: AGENTMEMORY_TOOLS
+              value: all
+            - name: AGENTMEMORY_III_VERSION
+              value: 0.11.2
+            - name: III_REST_PORT
+              value: "3111"
+          ports:
+            - name: rest
+              containerPort: 3111
+            - name: streams
+              containerPort: 3112
+          readinessProbe:
+            httpGet:
+              path: /agentmemory/livez
+              port: rest
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /agentmemory/livez
+              port: rest
+            initialDelaySeconds: 60
+            periodSeconds: 30
+          volumeMounts:
+            - name: data
+              mountPath: /home/node/.agentmemory
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: agentmemory-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: agentmemory
+spec:
+  selector:
+    app: agentmemory
+  ports:
+    - name: rest
+      port: 3111
+      targetPort: rest
+    - name: streams
+      port: 3112
+      targetPort: streams

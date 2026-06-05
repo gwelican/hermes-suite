@@ -1,68 +1,183 @@
-name: Build and Push Multi-Arch Image
+name: Build and Push Images
 
 on:
   push:
+    branches:
+      - main
     tags:
-      - 'v*'
+      - "v*"
+
+permissions:
+  contents: write
+  packages: write
 
 env:
-  REGISTRY: docker.io
-  IMAGE_NAME: ascensionoid/hermes-suite
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+  GHCR_USERNAME: gwelican
 
 jobs:
-  build:
+  create-tag:
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
+    outputs:
+      suite_version: ${{ steps.release.outputs.suite_version }}
+      human_tag: ${{ steps.release.outputs.human_tag }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
+      - name: Validate GitHub token
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -n "${GH_TOKEN}" || { echo "GH_TOKEN secret is empty"; exit 1; }
+
+      - name: Create release tag
+        id: release
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+        run: |
+          set -euo pipefail
+          . ./config/versions.env
+          SUITE_VERSION="$(date -u +%Y.%m.%d).${GITHUB_RUN_NUMBER}"
+          RELEASE_TAG="v${SUITE_VERSION}"
+          HUMAN_TAG="agent-${HERMES_AGENT_VERSION#v}-webui-${HERMES_WEBUI_VERSION#v}-ob-${OBSIDIAN_HEADLESS_VERSION}-am-${AGENTMEMORY_VERSION}"
+
+          echo "suite_version=${SUITE_VERSION}" >> "$GITHUB_OUTPUT"
+          echo "human_tag=${HUMAN_TAG}" >> "$GITHUB_OUTPUT"
+
+          echo "SUITE_VERSION=${SUITE_VERSION}"
+          echo "RELEASE_TAG=${RELEASE_TAG}"
+          echo "HUMAN_TAG=${HUMAN_TAG}"
+
+          git fetch origin --tags
+          if git rev-parse "${RELEASE_TAG}" >/dev/null 2>&1; then
+            echo "Tag ${RELEASE_TAG} already exists. Skipping."
+            exit 0
+          fi
+
+          git config user.email "ci@github-actions"
+          git config user.name "GitHub Actions"
+          git tag -a "${RELEASE_TAG}" -m "Release ${RELEASE_TAG} (${HUMAN_TAG})"
+          git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "${RELEASE_TAG}"
+
+  build-agentmemory:
+    if: github.ref == 'refs/heads/main'
+    needs: create-tag
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Parse version from tag
+      - name: Load versions
         id: versions
         run: |
-          # Tag format: v2026.4.30-0.50.278
-          TAG="${GITHUB_REF_NAME}"
-          # Strip leading 'v' for Docker tag
-          DOCKER_TAG="${TAG#v}"
-          echo "docker_tag=${DOCKER_TAG}" >> "$GITHUB_OUTPUT"
+          set -euo pipefail
+          . ./config/versions.env
+          echo "agentmemory_version=${AGENTMEMORY_VERSION}" >> "$GITHUB_OUTPUT"
+          echo "agentmemory_iii_version=${AGENTMEMORY_III_VERSION}" >> "$GITHUB_OUTPUT"
+          echo "node_base_image=${NODE_BASE_IMAGE}" >> "$GITHUB_OUTPUT"
+          echo "AgentMemory: ${AGENTMEMORY_VERSION}"
+          echo "AgentMemory iii: ${AGENTMEMORY_III_VERSION}"
+          echo "Node base: ${NODE_BASE_IMAGE}"
 
-          # Extract agent and webui versions from the compound tag
-          # 2026.4.30-0.50.278 -> agent=2026.4.30, webui=0.50.278
-          AGENT_VER="${DOCKER_TAG%-*}"
-          WEBUI_VER="${DOCKER_TAG##*-}"
-          echo "agent_version=v${AGENT_VER}" >> "$GITHUB_OUTPUT"
-          echo "webui_version=v${WEBUI_VER}" >> "$GITHUB_OUTPUT"
-
-          echo "Suite tag:     ${DOCKER_TAG}"
-          echo "Agent version: v${AGENT_VER}"
-          echo "WebUI version: v${WEBUI_VER}"
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
+      - name: Validate GitHub token
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -n "${GH_TOKEN}" || { echo "GH_TOKEN secret is empty"; exit 1; }
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Login to Docker Hub
+      - name: Login to GHCR
         uses: docker/login-action@v3
         with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          registry: ${{ env.REGISTRY }}
+          username: ${{ env.GHCR_USERNAME }}
+          password: ${{ secrets.GH_TOKEN }}
 
-      - name: Build and push
+      - name: Build and push AgentMemory
         uses: docker/build-push-action@v6
         with:
           context: .
-          platforms: linux/amd64,linux/arm64
+          file: docker/agentmemory.Dockerfile
+          platforms: linux/amd64
+          push: true
+          build-args: |
+            NODE_BASE_IMAGE=${{ steps.versions.outputs.node_base_image }}
+            AGENTMEMORY_VERSION=${{ steps.versions.outputs.agentmemory_version }}
+            AGENTMEMORY_III_VERSION=${{ steps.versions.outputs.agentmemory_iii_version }}
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-agentmemory:${{ needs.create-tag.outputs.suite_version }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-agentmemory:${{ steps.versions.outputs.agentmemory_version }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-agentmemory:latest
+          cache-from: type=gha,scope=agentmemory
+          cache-to: type=gha,mode=max,scope=agentmemory
+
+  build-hermes:
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Load versions
+        id: versions
+        run: |
+          set -euo pipefail
+          . ./config/versions.env
+          SUITE_VERSION="${GITHUB_REF_NAME#v}"
+          HUMAN_TAG="agent-${HERMES_AGENT_VERSION#v}-webui-${HERMES_WEBUI_VERSION#v}-ob-${OBSIDIAN_HEADLESS_VERSION}-am-${AGENTMEMORY_VERSION}"
+
+          echo "suite_version=${SUITE_VERSION}" >> "$GITHUB_OUTPUT"
+          echo "human_tag=${HUMAN_TAG}" >> "$GITHUB_OUTPUT"
+          echo "agent_version=${HERMES_AGENT_VERSION}" >> "$GITHUB_OUTPUT"
+          echo "webui_version=${HERMES_WEBUI_VERSION}" >> "$GITHUB_OUTPUT"
+          echo "obsidian_version=${OBSIDIAN_HEADLESS_VERSION}" >> "$GITHUB_OUTPUT"
+
+          echo "Suite: ${SUITE_VERSION}"
+          echo "Human alias: ${HUMAN_TAG}"
+          echo "Agent: ${HERMES_AGENT_VERSION}"
+          echo "WebUI: ${HERMES_WEBUI_VERSION}"
+          echo "Obsidian: ${OBSIDIAN_HEADLESS_VERSION}"
+
+      - name: Validate GitHub token
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -n "${GH_TOKEN}" || { echo "GH_TOKEN secret is empty"; exit 1; }
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ env.GHCR_USERNAME }}
+          password: ${{ secrets.GH_TOKEN }}
+
+      - name: Build and push Hermes
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/hermes.Dockerfile
+          platforms: linux/amd64
           push: true
           build-args: |
             AGENT_VERSION=${{ steps.versions.outputs.agent_version }}
             HERMES_WEBUI_VERSION=${{ steps.versions.outputs.webui_version }}
+            OBSIDIAN_HEADLESS_VERSION=${{ steps.versions.outputs.obsidian_version }}
           tags: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.versions.outputs.docker_tag }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.versions.outputs.suite_version }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.versions.outputs.human_tag }}
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=hermes
+          cache-to: type=gha,mode=max,scope=hermes

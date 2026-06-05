@@ -1,0 +1,11 @@
+# =============================================================================
+# custom/requirements.txt — Additional Python packages for Hermes Suite
+#
+# These are installed at image build time into the agent's Python environment.
+# Add packages here (one per line) and rebuild the image.
+#
+# Examples:
+#   obsidian-export      # Obsidian vault sync utilities
+#   markdownify          # HTML-to-Markdown conversion for sync pipelines
+#   pyyaml               # YAML helpers for custom scripts
+# =============================================================================

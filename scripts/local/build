@@ -1,0 +1,88 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
+VERSIONS_FILE="${ROOT_DIR}/config/versions.env"
+DOCKERFILE="${ROOT_DIR}/docker/hermes.Dockerfile"
+
+if [ ! -f "${VERSIONS_FILE}" ]; then
+    echo "ERROR: ${VERSIONS_FILE} not found" >&2
+    exit 1
+fi
+
+# shellcheck disable=SC1090
+. "${VERSIONS_FILE}"
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --agent) HERMES_AGENT_VERSION="$2"; shift 2 ;;
+        --webui) HERMES_WEBUI_VERSION="$2"; shift 2 ;;
+        --obsidian) OBSIDIAN_HEADLESS_VERSION="$2"; shift 2 ;;
+        --runtime) CONTAINER_RUNTIME="$2"; shift 2 ;;
+        --docker) CONTAINER_RUNTIME="docker"; shift ;;
+        --podman) CONTAINER_RUNTIME="podman"; shift ;;
+        --sudo) USE_SUDO="true"; shift ;;
+        *) echo "ERROR: unknown argument: $1" >&2; exit 1 ;;
+    esac
+done
+
+CONTAINER_RUNTIME="${CONTAINER_RUNTIME:-auto}"
+USE_SUDO="${USE_SUDO:-false}"
+
+if [ "${CONTAINER_RUNTIME}" = "auto" ]; then
+    if command -v podman >/dev/null 2>&1; then
+        CONTAINER_RUNTIME="podman"
+    elif command -v docker >/dev/null 2>&1; then
+        CONTAINER_RUNTIME="docker"
+    else
+        echo "ERROR: neither podman nor docker found" >&2
+        exit 1
+    fi
+fi
+
+case "${CONTAINER_RUNTIME}" in
+    podman) BUILD_CMD="podman" ;;
+    docker|docker-nolog) BUILD_CMD="docker" ;;
+    *) echo "ERROR: unknown CONTAINER_RUNTIME=${CONTAINER_RUNTIME}" >&2; exit 1 ;;
+esac
+
+SUDO_PREFIX=()
+if [ "${USE_SUDO}" = "true" ]; then
+    SUDO_PREFIX=(sudo)
+fi
+
+IMAGE="ghcr.io/gwelican/hermes-suite:${SUITE_VERSION}"
+HUMAN_TAG="agent-${HERMES_AGENT_VERSION#v}-webui-${HERMES_WEBUI_VERSION#v}-ob-${OBSIDIAN_HEADLESS_VERSION}-am-${AGENTMEMORY_VERSION}"
+HUMAN_IMAGE="ghcr.io/gwelican/hermes-suite:${HUMAN_TAG}"
+
+echo "Building Hermes Suite"
+echo "  Suite version: ${SUITE_VERSION}"
+echo "  Agent:         ${HERMES_AGENT_VERSION}"
+echo "  WebUI:         ${HERMES_WEBUI_VERSION}"
+echo "  Obsidian:      ${OBSIDIAN_HEADLESS_VERSION}"
+echo "  Image:         ${IMAGE}"
+echo "  Alias:         ${HUMAN_IMAGE}"
+echo "  Runtime:       ${CONTAINER_RUNTIME}"
+
+if [ "${BUILD_CMD}" = "podman" ]; then
+    "${SUDO_PREFIX[@]}" podman build \
+        --format docker \
+        --build-arg "AGENT_VERSION=${HERMES_AGENT_VERSION}" \
+        --build-arg "HERMES_WEBUI_VERSION=${HERMES_WEBUI_VERSION}" \
+        --build-arg "OBSIDIAN_HEADLESS_VERSION=${OBSIDIAN_HEADLESS_VERSION}" \
+        -f "${DOCKERFILE}" \
+        -t "${IMAGE}" \
+        -t "${HUMAN_IMAGE}" \
+        "${ROOT_DIR}"
+else
+    "${SUDO_PREFIX[@]}" docker build \
+        --build-arg "AGENT_VERSION=${HERMES_AGENT_VERSION}" \
+        --build-arg "HERMES_WEBUI_VERSION=${HERMES_WEBUI_VERSION}" \
+        --build-arg "OBSIDIAN_HEADLESS_VERSION=${OBSIDIAN_HEADLESS_VERSION}" \
+        -f "${DOCKERFILE}" \
+        -t "${IMAGE}" \
+        -t "${HUMAN_IMAGE}" \
+        "${ROOT_DIR}"
+fi
+
+echo "Build complete: ${IMAGE}"

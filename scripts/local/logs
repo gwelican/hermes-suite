@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
+VERSIONS_FILE="${ROOT_DIR}/config/versions.env"
+COMPOSE_FILE="${ROOT_DIR}/deploy/compose.yaml"
+
+# shellcheck disable=SC1090
+. "${VERSIONS_FILE}"
+CONTAINER_RUNTIME="${CONTAINER_RUNTIME:-auto}"
+USE_SUDO="${USE_SUDO:-false}"
+
+if [ "${CONTAINER_RUNTIME}" = "auto" ]; then
+    if command -v podman >/dev/null 2>&1; then
+        CONTAINER_RUNTIME="podman"
+    elif command -v docker >/dev/null 2>&1; then
+        CONTAINER_RUNTIME="docker"
+    else
+        echo "ERROR: neither podman nor docker found" >&2
+        exit 1
+    fi
+fi
+
+SUDO_PREFIX=()
+if [ "${USE_SUDO}" = "true" ]; then
+    SUDO_PREFIX=(sudo)
+fi
+
+export HERMES_SUITE_IMAGE="ghcr.io/gwelican/hermes-suite"
+export HERMES_SUITE_IMAGE_TAG="${SUITE_VERSION}"
+
+case "${CONTAINER_RUNTIME}" in
+    podman)
+        export PATH="$HOME/.local/bin:$PATH"
+        PODMAN_COMPOSE="$(command -v podman-compose)"
+        "${SUDO_PREFIX[@]}" "${PODMAN_COMPOSE}" -f "${COMPOSE_FILE}" logs -f
+        ;;
+    docker|docker-nolog)
+        "${SUDO_PREFIX[@]}" docker compose -f "${COMPOSE_FILE}" logs -f
+        ;;
+    *)
+        echo "ERROR: unknown CONTAINER_RUNTIME=${CONTAINER_RUNTIME}" >&2
+        exit 1
+        ;;
+esac

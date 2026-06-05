@@ -1,0 +1,24 @@
+services:
+  agentmemory:
+    build:
+      context: ../..
+      dockerfile: docker/agentmemory.Dockerfile
+      args:
+        NODE_BASE_IMAGE: ${NODE_BASE_IMAGE:-ghcr.io/gwelican/node:24-bookworm-slim}
+        AGENTMEMORY_VERSION: ${AGENTMEMORY_VERSION:-0.9.26}
+        AGENTMEMORY_III_VERSION: ${AGENTMEMORY_III_VERSION:-0.11.2}
+    image: ${AGENTMEMORY_IMAGE:-ghcr.io/gwelican/hermes-suite-agentmemory}:${AGENTMEMORY_IMAGE_TAG:-0.9.26}
+    container_name: agentmemory
+    ports:
+      - "3111:3111"
+    volumes:
+      - agentmemory-data:/home/node/.agentmemory
+    environment:
+      - NODE_ENV=production
+      - AGENTMEMORY_TOOLS=all
+      - AGENTMEMORY_III_VERSION=${AGENTMEMORY_III_VERSION:-0.11.2}
+      - III_REST_PORT=3111
+    restart: unless-stopped
+
+volumes:
+  agentmemory-data:

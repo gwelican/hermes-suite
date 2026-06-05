@@ -10,7 +10,7 @@
 #   hermes-dashboard — Built-in monitoring dashboard on port 9119
 #   hermes-webui     — Browser chat interface on port 8787
 #
-# Build:  podman build -t hermes-suite:2026.5.29.2-0.51.230 .
+# Build:  scripts/local/build
 # Run:    podman-compose up -d
 # =============================================================================
 
@@ -23,6 +23,7 @@ ARG AGENT_VERSION=v2026.5.29.2
 FROM docker.io/nousresearch/hermes-agent:${AGENT_VERSION}
 
 USER root
+RUN touch /.dockerenv
 
 # ---------------------------------------------------------------------------
 # Stage 2: Install system dependencies needed by all services
@@ -39,8 +40,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         procps \
     && rm -rf /var/lib/apt/lists/*
 
-# Allow hermes user to use sudo without password
-RUN echo "hermes ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
 
 # ---------------------------------------------------------------------------
 # Stage 3: Install Browser tool dependencies for agent
@@ -89,10 +88,34 @@ RUN echo "__version__ = '${HERMES_WEBUI_VERSION}'" > /opt/hermes-webui/api/_vers
 RUN chown -R hermes:hermes /opt/hermes-webui/venv
 
 # ---------------------------------------------------------------------------
+# Stage 5b: Custom additions (skills, tools, extra packages)
+# Copy files from custom/ into the image.  Rebuild to pick up changes.
+# ---------------------------------------------------------------------------
+# Ensure directories exist even if custom/ folders are empty
+RUN mkdir -p /opt/hermes/skills/custom /opt/hermes-suite/bin /opt/hermes-suite/entrypoint.d /opt/hermes-suite/supervisord.d
+
+
+# Official Obsidian Sync CLI (`ob`). Requires Node 22+, provided by the
+# hermes-agent base image.
+ARG OBSIDIAN_HEADLESS_VERSION=0.0.10
+RUN npm install -g --no-audit "obsidian-headless@${OBSIDIAN_HEADLESS_VERSION}"
+
+COPY custom/requirements.txt /tmp/custom-requirements.txt
+RUN if [ -s /tmp/custom-requirements.txt ]; then \
+        uv pip install --system -r /tmp/custom-requirements.txt; \
+    fi
+
+COPY custom/skills/ /opt/hermes/skills/custom/
+COPY custom/bin/ /opt/hermes-suite/bin/
+COPY custom/entrypoint.d/ /opt/hermes-suite/entrypoint.d/
+COPY custom/supervisord.d/ /opt/hermes-suite/supervisord.d/
+RUN chmod -R +x /opt/hermes-suite/bin /opt/hermes-suite/entrypoint.d 2>/dev/null || true
+
 # Stage 6: Set up supervisord config and startup script
 # ---------------------------------------------------------------------------
-COPY supervisord.conf /etc/supervisor/supervisord.conf
-COPY start.sh /opt/hermes-suite/start.sh
+COPY config/supervisord.conf /etc/supervisor/supervisord.conf
+RUN printf '\\n; Optional: custom services from custom/supervisord.d/*.conf\\n[include]\\nfiles = /opt/hermes-suite/supervisord.d/*.conf\\n' >> /etc/supervisor/supervisord.conf
+COPY scripts/container/start.sh /opt/hermes-suite/start.sh
 RUN chmod +x /opt/hermes-suite/start.sh
 
 # ---------------------------------------------------------------------------
@@ -101,13 +124,16 @@ RUN chmod +x /opt/hermes-suite/start.sh
 # Re-declare ARGs after FROM so they are available in LABEL
 ARG AGENT_VERSION=v2026.5.29.2
 ARG HERMES_WEBUI_VERSION=v0.51.230
+ARG OBSIDIAN_HEADLESS_VERSION=0.0.10
+
 
 LABEL org.opencontainers.image.title="Hermes Suite" \
       org.opencontainers.image.description="All-in-one: hermes-agent + hermes-webui + hermes-dashboard" \
-      org.opencontainers.image.source="https://github.com/sunnysktsang/hermes-suite" \
-      org.opencontainers.image.vendor="sunnysktsang" \
+      org.opencontainers.image.source="https://github.com/gwelican/hermes-suite" \
+      org.opencontainers.image.vendor="gwelican" \
       hermes-suite.agent-version="${AGENT_VERSION}" \
-      hermes-suite.webui-version="${HERMES_WEBUI_VERSION}"
+      hermes-suite.webui-version="${HERMES_WEBUI_VERSION}" \
+      hermes-suite.obsidian-headless-version="${OBSIDIAN_HEADLESS_VERSION}"
 
 ENV PATH="/opt/hermes/.venv/bin:/opt/hermes-webui/venv/bin:$PATH"
 ENV HERMES_HOME=/opt/data

@@ -1,0 +1,71 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    ":automergeBranch",
+    ":rebaseStalePrs"
+  ],
+  "labels": ["dependencies", "renovate"],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "Track hermes-agent Docker image version",
+      "fileMatch": ["^config/versions\\.env$"],
+      "matchStrings": [
+        "HERMES_AGENT_VERSION=(?<currentValue>v?[\\d.]+)"
+      ],
+      "datasourceTemplate": "docker",
+      "depNameTemplate": "nousresearch/hermes-agent",
+      "versioningTemplate": "loose"
+    },
+    {
+      "customType": "regex",
+      "description": "Track hermes-webui GitHub tag version",
+      "fileMatch": ["^config/versions\\.env$"],
+      "matchStrings": [
+        "HERMES_WEBUI_VERSION=(?<currentValue>v?[\\d.]+)"
+      ],
+      "datasourceTemplate": "github-tags",
+      "depNameTemplate": "nesquena/hermes-webui",
+      "versioningTemplate": "loose"
+    },
+    {
+      "customType": "regex",
+      "description": "Track obsidian-headless npm version",
+      "fileMatch": ["^config/versions\\.env$"],
+      "matchStrings": [
+        "OBSIDIAN_HEADLESS_VERSION=(?<currentValue>[\\d.]+)"
+      ],
+      "datasourceTemplate": "npm",
+      "depNameTemplate": "obsidian-headless",
+      "versioningTemplate": "semver"
+    },
+    {
+      "customType": "regex",
+      "description": "Track AgentMemory npm package version",
+      "fileMatch": ["^config/versions\\.env$"],
+      "matchStrings": [
+        "AGENTMEMORY_VERSION=(?<currentValue>[\\d.]+)"
+      ],
+      "datasourceTemplate": "npm",
+      "depNameTemplate": "@agentmemory/agentmemory",
+      "versioningTemplate": "semver"
+    }
+  ],
+  "packageRules": [
+    {
+      "description": "Auto-merge minor and patch version bumps for bundled components",
+      "matchDatasources": ["docker", "github-tags", "npm"],
+      "matchDepNames": [
+        "nousresearch/hermes-agent",
+        "nesquena/hermes-webui",
+        "obsidian-headless",
+        "@agentmemory/agentmemory"
+      ],
+      "matchUpdateTypes": ["minor", "patch"],
+      "automerge": true,
+      "automergeType": "pr",
+      "platformAutomerge": true
+    }
+  ]
+}
